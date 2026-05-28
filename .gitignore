@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+*.egg
+*.egg-info/
+*.sqlite3
+*.db
+*.log
+
+# VSCode & IDE stuff
+.vscode/
+.idea/
+*.swp
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+Pipfile.lock
+poetry.lock
+
+# Data & cache
+.DS_Store
+*.csv
+*.jsonl
+*.bak
+*.tmp
+*.cache/
+*.ipynb_checkpoints/
+
+# YAJPH/HouseHack OS specific
+*.secrets.yaml
+*.config.yaml
+*.prompt.yaml
+*.output.yaml
+*.debug.log
+
+# Git / Debug tooling
+coverage/
+dist/
+build/
+*.tgz
+
+# LLM results
+*.md.output
+*.json.output
+logs/
+outputs/
+results/
