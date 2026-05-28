@@ -123,6 +123,29 @@ def tokenize(src: str) -> List[Token]:
 SExpr = list  # either a list of SExprs or a Token
 
 
+# Tagged list wrapper so we can distinguish (call) from [vector] from {map}
+class SList(list):
+    """S-expression list tagged with its opening bracket character."""
+
+    __slots__ = ("bracket",)
+
+    def __init__(self, bracket: str, items):
+        super().__init__(items)
+        self.bracket = bracket  # '(', '[', or '{'
+
+
+def is_vec(x) -> bool:
+    return isinstance(x, SList) and x.bracket == "["
+
+
+def is_call(x) -> bool:
+    return isinstance(x, SList) and x.bracket == "("
+
+
+def is_map_literal(x) -> bool:
+    return isinstance(x, SList) and x.bracket == "{"
+
+
 def parse(tokens: List[Token]) -> List[SExpr]:
     tokens = [t for t in tokens if t.kind != "COMMENT"]
     pos = [0]
@@ -142,19 +165,20 @@ def parse(tokens: List[Token]) -> List[SExpr]:
         if t.kind == "QUOTE":
             consume()
             inner = read_form()
-            return [Token("ATOM", "quote"), inner]
+            return SList("(", [Token("ATOM", "quote"), inner])
         if t.kind == "DISPATCH":
             consume()
             inner = read_form()
-            return [Token("ATOM", "@"), inner]
+            return SList("(", [Token("ATOM", "@"), inner])
         if t.kind == "OPEN":
+            bracket = t.val  # '(', '[', or '{'
             consume()
             items = []
             while peek() and peek().kind != "CLOSE":
                 items.append(read_form())
             if peek():
                 consume()  # eat CLOSE
-            return items
+            return SList(bracket, items)
         return consume()
 
     forms = []
@@ -181,7 +205,8 @@ def atom_val(x) -> str:
 
 
 def is_list(x) -> bool:
-    return isinstance(x, list)
+    """True for any compound form — call, vector, or map literal."""
+    return isinstance(x, SList)
 
 
 def head_is(x, val: str) -> bool:
@@ -194,19 +219,13 @@ def is_str_token(x) -> bool:
 
 def clj_str_to_ys(s: str) -> str:
     """Convert Clojure double-quoted string to YS form.
-    Handles internal nested single or double quotes safely."""
+    If it contains interpolation markers, keep double-quoted.
+    Otherwise prefer single-quoted."""
     inner = s[1:-1]
-    # Unescape Clojure double quotes if any
+    # unescape Clojure escapes
     inner = inner.replace('\\"', '"')
-
-    # If it contains single quotes but no double quotes, wrap in double quotes
-    if "'" in inner and '"' not in inner:
+    if "$" in inner or "\\" in inner:
         return f'"{inner}"'
-    # If it contains interpolation or double quotes, keep double-quoted and escape inner double quotes
-    elif "$" in inner or "\\" in inner or '"' in inner:
-        escaped = inner.replace('"', '\\"')
-        return f'"{escaped}"'
-    # Default to safe single-quoting
     return f"'{inner}'"
 
 
@@ -387,9 +406,13 @@ class Transpiler:
             else:
                 self.emit(f"{ys_fn}: {' '.join(args)}")
 
-        # (doseq [[k v] coll] body...)
+        # (doseq [[k v] coll] body...) — original Clojure form
         elif head == "doseq":
             self._emit_doseq(form)
+
+        # (each [x coll] body...) — canonical normalized form
+        elif head == "each":
+            self._emit_each(form)
 
         # (let [bindings...] body...)
         elif head == "let":
@@ -443,7 +466,7 @@ class Transpiler:
             if is_atom(a, "&"):
                 i += 1
                 parts.append(f"& {atom_val(args[i])}")
-            elif is_list(a):
+            elif is_vec(a):
                 # destructuring: [[k v]]
                 inner = " ".join(atom_val(x) for x in a if isinstance(x, Token))
                 parts.append(f"[{inner}]")
@@ -490,8 +513,32 @@ class Transpiler:
         for _ in bind_pairs[1:]:
             self.indent -= 1
 
+    # ---- each (canonical normalized form) ----
+
+    def _emit_each(self, form: SExpr):
+        """Emit (each [binding coll] body...) — canonical post-normalization form.
+        The binding vector is form[1]: [pattern collection].
+        Works for both:
+          (each [x numbers] ...)           — simple binding
+          (each [kv active-relations] ...)  — normalized from doseq destructuring
+        """
+        binding = form[1]  # a [pat coll] vector
+        body = form[2:]
+
+        # binding[0] = pattern, binding[1] = collection
+        pat = binding[0] if len(binding) > 0 else Token("ATOM", "_")
+        coll = binding[1] if len(binding) > 1 else Token("ATOM", "nil")
+
+        pat_s = self._pattern(pat)
+        coll_s = self.expr(coll)
+        self.emit(f"each {pat_s} {coll_s}:")
+        self.indent += 1
+        for b in body:
+            self.emit_top(b)
+        self.indent -= 1
+
     def _pattern(self, pat) -> str:
-        if is_list(pat):
+        if is_vec(pat):
             inner = " ".join(atom_val(x) for x in pat if isinstance(x, Token))
             return f"[{inner}]"
         return atom_val(pat)
@@ -545,10 +592,33 @@ class Transpiler:
         if isinstance(form, Token):
             return self._token_expr(form)
 
-        # List form
-        if not is_list(form) or not form:
+        # Not a tagged SList at all
+        if not is_list(form):
             return "nil"
 
+        # Empty form
+        if not form:
+            return "nil"
+
+        # ---- Vector literal [1 2 3] → +[1 2 3] ----
+        if is_vec(form):
+            items = " ".join(self.expr(x) for x in form)
+            return f"+[{items}]"
+
+        # ---- Map literal {k v ...} → +{k: v, ...} ----
+        if is_map_literal(form):
+            if not form:
+                return "+{}"
+            pairs = []
+            it = iter(form)
+            for k in it:
+                v = next(it, None)
+                ks = self.expr(k)
+                vs = self.expr(v) if v is not None else "nil"
+                pairs.append(f"{ks}: {vs}")
+            return "+{" + ", ".join(pairs) + "}"
+
+        # Everything below is a call form: (head arg arg ...)
         head = form[0]
         hv = atom_val(head) if isinstance(head, Token) else ""
 
@@ -721,26 +791,24 @@ class Transpiler:
 
     def _emit_fn(self, form: SExpr) -> str:
         """Convert (fn [args] body) to lambda or fn([args] body)."""
-        args = form[1]
+        args = form[1]  # should be a vec [...]
         body = form[2] if len(form) > 2 else None
 
         # Destructured single arg: (fn [[k v]] body)
-        # Keep real param names — do NOT replace with _
-        if is_list(args) and len(args) == 1 and is_list(args[0]):
+        if is_vec(args) and len(args) == 1 and is_vec(args[0]):
             inner = " ".join(atom_val(x) for x in args[0] if isinstance(x, Token))
             body_s = self.expr(body) if body else "nil"
             return f"fn([{inner}] {body_s})"
 
         # Single plain-symbol arg — safe to use _ shorthand
         if (
-            is_list(args)
+            is_vec(args)
             and len(args) == 1
             and isinstance(args[0], Token)
             and body is not None
         ):
             param = atom_val(args[0])
             body_s = self.expr(body)
-            # Only replace the param as a whole word to avoid partial matches
             body_ys = re.sub(rf"\b{re.escape(param)}\b", "_", body_s)
             return f"\\({body_ys})"
 
@@ -748,7 +816,7 @@ class Transpiler:
         params = " ".join(
             atom_val(a) if isinstance(a, Token) else self._pattern(a)
             for a in args
-            if isinstance(a, (Token, list))
+            if isinstance(a, (Token, SList))
         )
         body_s = self.expr(body) if body else "nil"
         return f"fn([{params}] {body_s})"
