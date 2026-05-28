@@ -194,13 +194,19 @@ def is_str_token(x) -> bool:
 
 def clj_str_to_ys(s: str) -> str:
     """Convert Clojure double-quoted string to YS form.
-    If it contains interpolation markers, keep double-quoted.
-    Otherwise prefer single-quoted."""
+    Handles internal nested single or double quotes safely."""
     inner = s[1:-1]
-    # unescape Clojure escapes
+    # Unescape Clojure double quotes if any
     inner = inner.replace('\\"', '"')
-    if "$" in inner or "\\" in inner:
+
+    # If it contains single quotes but no double quotes, wrap in double quotes
+    if "'" in inner and '"' not in inner:
         return f'"{inner}"'
+    # If it contains interpolation or double quotes, keep double-quoted and escape inner double quotes
+    elif "$" in inner or "\\" in inner or '"' in inner:
+        escaped = inner.replace('"', '\\"')
+        return f'"{escaped}"'
+    # Default to safe single-quoting
     return f"'{inner}'"
 
 
