@@ -304,7 +304,7 @@ RENAMES = {
     "not": ".!!",  # handled specially
     "inc": "inc",
     "dec": "dec",
-    "mod": "%%",
+    "mod": "%",
     "rem": "%",
     "str": None,  # handled specially
     "doseq": "each",
@@ -328,7 +328,6 @@ INFIX_OPS = {
     "*",
     "/",
     "%",
-    "%%",
     "=",
     "not=",
     "<",
@@ -347,7 +346,34 @@ OP_MAP = {
     "not=": "!=",
     "and": "&&",
     "or": "||",
+    "mod": "%",
+    "rem": "%",
 }
+
+
+def is_atomic_ys(s: str) -> bool:
+    """True when `s` is a single YS scalar with no top-level operator.
+
+    Used to decide whether a chain operator (.! .!! .#) can be appended
+    directly, or whether the expression must be parenthesized first.
+    Bracketed groups count as atomic: `+[1 2]` has spaces but is already
+    delimited, and `(f x)` likewise.
+    """
+    depth = 0
+    quote = None
+    for ch in s:
+        if quote is not None:
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == " " and depth == 0:
+            return False
+    return True
 
 
 # ============================================================================
@@ -359,6 +385,8 @@ class Transpiler:
     def __init__(self):
         self.indent = 0
         self.lines: List[str] = []
+        self._pending: List[str] = []
+        self._tmp = 0
 
     # ---- output helpers ----
 
@@ -494,15 +522,21 @@ class Transpiler:
         if len(bind_pairs) == 1:
             pat, coll = bind_pairs[0]
             pat_s = self._pattern(pat)
-            coll_s = self.expr(coll)
+            coll_s = self._binding_coll(coll)
+            self._flush_pending()
             self.emit(f"each {pat_s} {coll_s}:")
         else:
             # nested each
             first_pat, first_coll = bind_pairs[0]
-            self.emit(f"each {self._pattern(first_pat)} {self.expr(first_coll)}:")
+            self._flush_pending()
+            self.emit(
+                f"each {self._pattern(first_pat)} {self._binding_coll(first_coll)}:"
+            )
             self.indent += 1
             for pat, coll in bind_pairs[1:]:
-                self.emit(f"each {self._pattern(pat)} {self.expr(coll)}:")
+                coll_s = self._binding_coll(coll)
+                self._flush_pending()
+                self.emit(f"each {self._pattern(pat)} {coll_s}:")
                 self.indent += 1
 
         self.indent += 1
@@ -530,7 +564,8 @@ class Transpiler:
         coll = binding[1] if len(binding) > 1 else Token("ATOM", "nil")
 
         pat_s = self._pattern(pat)
-        coll_s = self.expr(coll)
+        coll_s = self._binding_coll(coll)
+        self._flush_pending()
         self.emit(f"each {pat_s} {coll_s}:")
         self.indent += 1
         for b in body:
@@ -542,6 +577,46 @@ class Transpiler:
             inner = " ".join(atom_val(x) for x in pat if isinstance(x, Token))
             return f"[{inner}]"
         return atom_val(pat)
+
+    # ---- loop binding collections ----
+
+    def _binding_coll(self, coll) -> str:
+        """Render a loop binding collection as valid YS.
+
+        A collection literal cannot appear in binding position. Emitting
+        `each x +[1 2]:` fails with "for requires an even number of forms
+        in binding vector", because YS reads the bracketed group as part
+        of the binding vector rather than as the collection it ranges
+        over. Two forms are accepted: a variable (`each x xs:`) and a
+        range expression (`each x (1 .. 2):`).
+
+        A contiguous run of integer literals therefore becomes a range.
+        Any other literal is hoisted into a temporary binding emitted
+        just before the loop, so shapes like [1 5 3] stay correct
+        instead of being silently mangled into a range.
+        """
+        if is_vec(coll):
+            vals: List[int] = []
+            for x in coll:
+                if not isinstance(x, Token) or not re.match(r"^-?\d+$", x.val):
+                    vals = []
+                    break
+                vals.append(int(x.val))
+            if (
+                len(vals) >= 2
+                and vals == list(range(vals[0], vals[0] + len(vals)))
+            ):
+                return f"({vals[0]} .. {vals[-1]})"
+            self._tmp += 1
+            name = f"_coll{self._tmp}"
+            self._pending.append(f"{name} =: {self.expr(coll)}")
+            return name
+        return self.expr(coll)
+
+    def _flush_pending(self):
+        for line in self._pending:
+            self.emit(line)
+        self._pending = []
 
     # ---- let ----
 
@@ -605,18 +680,29 @@ class Transpiler:
             items = " ".join(self.expr(x) for x in form)
             return f"+[{items}]"
 
-        # ---- Map literal {k v ...} → +{k: v, ...} ----
+        # ---- Map literal {k v ...} → hash-map('k' v, ...) ----
         if is_map_literal(form):
+            # YS code mode forbids flow mappings, so the obvious
+            # `+{k: v, ...}` is not even a YAML document ("mapping values
+            # are not allowed in this context"), and a block mapping is
+            # not an expression so it cannot appear in argument position
+            # either. Quoted keys are worse still: inside a block or
+            # flow mapping any quoted key fails with "interface
+            # conversion: interface {} is nil, not string".
+            #
+            # hash-map() is the one form that builds a map with genuine
+            # string keys, works in any expression position, and handles
+            # the empty and nested cases.
             if not form:
-                return "+{}"
+                return "hash-map()"
             pairs = []
             it = iter(form)
             for k in it:
                 v = next(it, None)
                 ks = self.expr(k)
                 vs = self.expr(v) if v is not None else "nil"
-                pairs.append(f"{ks}: {vs}")
-            return "+{" + ", ".join(pairs) + "}"
+                pairs.append(f"{ks} {vs}")
+            return "hash-map(" + " ".join(pairs) + ")"
 
         # Everything below is a call form: (head arg arg ...)
         head = form[0]
@@ -628,15 +714,15 @@ class Transpiler:
 
         # (zero? x) → x.!
         if hv in ("zero?", "empty?", "nil?"):
-            return f"{self.expr(form[1])}.!"
+            return f"{self._chainable(self.expr(form[1]))}.!"
 
         # (not x) → x.!!
         if hv == "not":
-            return f"{self.expr(form[1])}.!!"
+            return f"{self._chainable(self.expr(form[1]))}.!!"
 
         # (count x) → x.#
         if hv == "count":
-            return f"{self.expr(form[1])}.#"
+            return f"{self._chainable(self.expr(form[1]))}.#"
 
         # (seq x) → x.seq (zero-arg colon chain)
         if hv == "seq":
@@ -646,14 +732,17 @@ class Transpiler:
         if hv in ZERO_ARG and len(form) == 2:
             return f"{self.expr(form[1])}:{hv}"
 
-        # (get m k) → m.'k' or m.k or nth(m n) for integer/variable keys
+        # (get m k) → m.get('k') / m.k / nth(m n) depending on the key
         if hv == "get":
             obj = self.expr(form[1])
             key = form[2]
             ks = atom_val(key) if isinstance(key, Token) else self.expr(key)
             if is_str_token(key):
+                # A quoted key is not a YS property name: `m.'a'` fails
+                # with "interface conversion: interface {} is nil, not
+                # string". The .get() accessor takes the key as a value.
                 inner = key.val[1:-1]
-                return f"{obj}.'{inner}'"
+                return f"{obj}.get('{inner}')"
             if isinstance(key, Token) and key.kind == "KW":
                 return f"{obj}.{ks.lstrip(':')}"
             # Integer literal → nth(obj n)
@@ -800,19 +889,13 @@ class Transpiler:
             body_s = self.expr(body) if body else "nil"
             return f"fn([{inner}] {body_s})"
 
-        # Single plain-symbol arg — safe to use _ shorthand
-        if (
-            is_vec(args)
-            and len(args) == 1
-            and isinstance(args[0], Token)
-            and body is not None
-        ):
-            param = atom_val(args[0])
-            body_s = self.expr(body)
-            body_ys = re.sub(rf"\b{re.escape(param)}\b", "_", body_s)
-            return f"\\({body_ys})"
-
-        # Multi-arg → fn([a b] body)
+        # Single and multi arg → fn([args] body).
+        #
+        # We deliberately do not use the shorter \(body) placeholder form
+        # here, even for a single symbol arg. That form requires every
+        # occurrence of the parameter to be a plain value; YS's _ is not
+        # callable, so a body like (mod x 2) would become (_ 2) and fail
+        # at run time with "cannot apply non-function int64".
         params = " ".join(
             atom_val(a) if isinstance(a, Token) else self._pattern(a)
             for a in args
@@ -888,6 +971,21 @@ class Transpiler:
             return f"{ys_op}({self.expr(args[0])})"
         parts = [self.expr(a) for a in args]
         return f" {ys_op} ".join(parts)
+
+    # ---- chain target ----
+
+    def _chainable(self, s: str) -> str:
+        """Parenthesize a compound expression so a trailing chain operator
+        binds to the whole expression.
+
+        YS chain operators bind to the immediately preceding scalar, so
+        `(zero? (mod x 2))` must render as `((x % 2)).!`. Emitting it as
+        `x % 2.!` applies `.!` to the literal 2 instead, which silently
+        yields the wrong predicate rather than a parse error.
+        """
+        if is_atomic_ys(s):
+            return s
+        return f"({s})"
 
     # ---- inline cond ----
 
