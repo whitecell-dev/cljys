@@ -528,10 +528,13 @@ class Transpiler:
         else:
             # nested each
             first_pat, first_coll = bind_pairs[0]
+            # Render the collection before flushing: _binding_coll may
+            # queue a hoisted binding, and that binding belongs to the
+            # outer scope, so it must be emitted before the `each` line
+            # rather than inside the loop body.
+            first_coll_s = self._binding_coll(first_coll)
             self._flush_pending()
-            self.emit(
-                f"each {self._pattern(first_pat)} {self._binding_coll(first_coll)}:"
-            )
+            self.emit(f"each {self._pattern(first_pat)} {first_coll_s}:")
             self.indent += 1
             for pat, coll in bind_pairs[1:]:
                 coll_s = self._binding_coll(coll)
@@ -608,7 +611,10 @@ class Transpiler:
             ):
                 return f"({vals[0]} .. {vals[-1]})"
             self._tmp += 1
-            name = f"_coll{self._tmp}"
+            # YS reserves leading underscores: an identifier like _coll1
+            # is rejected with "Invalid symbol: '_coll1'". YS identifiers
+            # cannot start with an underscore at all.
+            name = f"coll{self._tmp}"
             self._pending.append(f"{name} =: {self.expr(coll)}")
             return name
         return self.expr(coll)
