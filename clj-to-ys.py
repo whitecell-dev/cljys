@@ -605,10 +605,7 @@ class Transpiler:
                     vals = []
                     break
                 vals.append(int(x.val))
-            if (
-                len(vals) >= 2
-                and vals == list(range(vals[0], vals[0] + len(vals)))
-            ):
+            if len(vals) >= 2 and vals == list(range(vals[0], vals[0] + len(vals))):
                 return f"({vals[0]} .. {vals[-1]})"
             self._tmp += 1
             # YS reserves leading underscores: an identifier like _coll1
@@ -781,13 +778,15 @@ class Transpiler:
         if hv == "->>":
             return self._thread(form[1:], forward=False)
 
-        # (range start end) → start .. end
+        # (range start end [step]) → range(start,end[,step]) in YS (exclusive end)
         if hv == "range":
+            if len(form) == 4:
+                return f"range({self.expr(form[1])}, {self.expr(form[2])}, {self.expr(form[3])})"
             if len(form) == 3:
-                return f"({self.expr(form[1])} .. {self.expr(form[2])})"
+                return f"range({self.expr(form[1])}, {self.expr(form[2])})"
             if len(form) == 2:
-                return f"(0 .. {self.expr(form[1])})"
-            return "0 .. 99"
+                return f"range(0, {self.expr(form[1])})"
+            return "range(0)"
 
         # (take n coll) / (drop n coll) — DWIM
         if hv in DWIM:

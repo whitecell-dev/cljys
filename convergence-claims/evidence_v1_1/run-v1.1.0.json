@@ -1,0 +1,53 @@
+{
+  "probe_suite_version": "v1.1.0",
+  "timestamp": "2026-10-05T17:09:28.993768Z",
+  "probes": [
+    {
+      "probe_id": "range_1arg",
+      "status": "PASS",
+      "actual_output": "(0 1 2 3 4)\n",
+      "expected": {
+        "version": "v1.1.0",
+        "expected_output": "(0 1 2 3 4)\n"
+      }
+    },
+    {
+      "probe_id": "range_2arg",
+      "status": "PASS",
+      "actual_output": "(1 2 3)\n",
+      "expected": {
+        "version": "v1.1.0",
+        "expected_output": "(1 2 3)\n"
+      }
+    },
+    {
+      "probe_id": "range_3arg",
+      "status": "PASS",
+      "actual_output": "(1 3 5 7 9)\n",
+      "expected": {
+        "version": "v1.1.0",
+        "expected_output": "(1 3 5 7 9)\n"
+      }
+    },
+    {
+      "probe_id": "range_nested",
+      "status": "PASS",
+      "actual_output": "1\n2\n2\n4\n3\n6\n",
+      "expected": {
+        "version": "v1.1.0",
+        "expected_output": "1\n2\n2\n4\n3\n6\n"
+      }
+    },
+    {
+      "probe_id": "range_workflow",
+      "status": "PASS",
+      "actual_output": "count=4\n1\n2\n3\n4\n(nil nil nil nil)\n",
+      "expected": {
+        "version": "v1.1.0",
+        "expected_output_contains": [
+          "count=4"
+        ]
+      }
+    }
+  ]
+}

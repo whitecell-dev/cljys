@@ -146,3 +146,13 @@ Test code confirms the stopping is mechanical - the worker checks claim state an
 - [x] All gates satisfied (probes can fail; claim references specific run; CI is mechanical; CHALLENGE path stops worker)
 
 The three-layer environment is built. The probe suite correctly identifies that while many primitives work, compositions involving the range mapping issue produce incorrect programs. This matches the experimental findings described in the task.
+
+## 10. Range Bug Fix (Follow-up)
+
+**Root cause:** The transpiler emitted YS range syntax `(a .. b)` for Clojure `(range ...)`, but in YAMLScript `(a .. b)` is inclusive of the end while Clojure `(range a b)` is exclusive. Also 1-arg and 3-arg forms were mishandled. The fix changes range emission to use YS's `range()` function form (`range(a,b)`, `range(0,n)`, `range(a,b,step)`) which matches Clojure's semantics (exclusive end).
+
+**Verification:**
+- v1.0.0 suite: 9 PASS, 1 FAIL (TR01_workflow unrelated to range). The 4 range-related failures (BUG01, P11_range, PA01, TR02) all flip to PASS.
+- v1.1.0 suite (new probes including range 1/2/3-arg, nested, and range-using workflow): 5 PASS, 0 FAIL.
+- Mutation check: reverted fix → probes go red; reapplied fix → probes go green. Confirms the fix is causal.
+- v1.0.0 corpus/expected remain frozen; v1.1.0 adds additional probes without modifying existing ones.
