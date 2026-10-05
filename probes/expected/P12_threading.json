@@ -1,0 +1,5 @@
+{
+  "version": "v1.0.0",
+  "description": "P12: threading macro",
+  "expected_output": "(2 4)\n"
+}

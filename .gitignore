@@ -50,3 +50,12 @@ build/
 logs/
 outputs/
 results/
+# Probe evidence and generated artifacts
+probes/run_probes.py
+probes/compositions/*_probe.py
+probes/primitives/*_probe.py
+probes/workflows/*_probe.py
+convergence-claims/evidence/
+ci/
+REPORT.md
+STOP.md

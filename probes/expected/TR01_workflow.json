@@ -1,0 +1,5 @@
+{
+  "version": "v1.0.0",
+  "description": "TR01 workflow: find_dependents query shape",
+  "expected_output_contains": ["SCANNING FOR DEPENDENTS", "modules"]
+}

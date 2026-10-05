@@ -1,0 +1,5 @@
+{
+  "version": "v1.0.0",
+  "description": "BUG01: nested doseq with range producing i*j - correct Clojure semantics (range is exclusive of end)",
+  "expected_output": "1\n2\n2\n4\n3\n6\n"
+}

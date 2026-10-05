@@ -1,0 +1,5 @@
+{
+  "version": "v1.0.0",
+  "description": "P11: range produces sequence exclusive of end (Clojure semantics)",
+  "expected_output": "(1 2 3)\n"
+}

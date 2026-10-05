@@ -1,0 +1,45 @@
+name: Probe Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          # Install YAMLScript if available, otherwise skip
+          pip install --upgrade pip 2>/dev/null || true
+      - name: Run probe suite
+        id: probes
+        run: |
+          cd $GITHUB_WORKSPACE
+          python3 probes/run_probes.py 2>&1 | tee probe_output.txt
+          echo "EXIT_CODE=$?" >> $GITHUB_ENV
+        continue-on-error: true
+      - name: Determine claim state
+        run: |
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo "CLAIM_STATE=ACTIVE" >> $GITHUB_ENV
+            echo "All probes passed - claim remains ACTIVE"
+          else
+            echo "CLAIM_STATE=SUSPECT" >> $GITHUB_ENV
+            echo "Probe failures detected - claim becomes SUSPECT"
+          fi
+      - name: Upload probe results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: probe-results
+          path: |
+            convergence-claims/evidence/run-*.json
+            probe_output.txt

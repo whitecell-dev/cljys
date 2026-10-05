@@ -1,0 +1,5 @@
+{
+  "version": "v1.0.0",
+  "description": "TR01: full query shape from find_dependents.clj",
+  "expected_output_contains": ["SCANNING FOR DEPENDENTS", "modules explicitly tracking target context"]
+}
