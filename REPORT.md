@@ -156,3 +156,75 @@ The three-layer environment is built. The probe suite correctly identifies that 
 - v1.1.0 suite (new probes including range 1/2/3-arg, nested, and range-using workflow): 5 PASS, 0 FAIL.
 - Mutation check: reverted fix → probes go red; reapplied fix → probes go green. Confirms the fix is causal.
 - v1.0.0 corpus/expected remain frozen; v1.1.0 adds additional probes without modifying existing ones.
+
+## 11. Verification Environment Hardening (Follow-up)
+
+Sections 5 and 6 described a mechanical SUSPECT transition. It had never
+actually executed: the gate was decorative.
+
+### Defects found in the gate
+
+| Defect | Location | Effect |
+|---|---|---|
+| `ys` never installed in CI | `ci/probe.yml` | every probe would ERROR on a runner |
+| `$?` read after `\| tee` | `ci/probe.yml` | captured `tee`'s status, always `0`; verified: runner exits 1, old logic reports `EXIT_CODE=0` |
+| `continue-on-error: true` | `ci/probe.yml` | the step could never fail the job |
+| suite/corpus/expected versions hardcoded to `v1.0.0`, output path fixed | `probes/run_probes.py` | v1.1.0 evidence was not reproducible by the committed runner; versioning had been solved by forking the suite directory |
+| both claims pointed at evidence paths that do not exist | `convergence-claims/*.md` | evidence refs dangled |
+| 11 near-identical probe scripts | `probes/*/` , `probes_v1_1/` | a new probe cost a code copy |
+| `ys f` vs `ys -p f` inconsistency | `BUG01_probe.py` vs `P11_range_probe.py` | a wrong invocation compares the wrong output, silently |
+| `datetime.utcnow()` deprecation | `probes/run_probes.py` | warning on every run |
+
+### What changed
+
+- **`probes/manifest.json` is now the single source of truth.** Suite,
+  corpus and expected versions, the pinned `ys` version, and every probe's
+  corpus path, expected path, and invocation mode are declared as data. Adding
+  a probe is a manifest edit plus two files.
+- **One runner.** `probes/run_probes.py` executes every declared probe,
+  distinguishes `run` (`ys FILE`) from `print` (`ys -p FILE`), supports both
+  exact and substring expectation shapes, writes one evidence file per suite,
+  and exits non-zero unless everything passes. The 11 duplicated probe scripts
+  were deleted; `git log` retains them.
+- **CI gates.** `pip install yamlscript==<manifest version>`, the runner's own
+  exit code captured via `PIPESTATUS` under `bash -e`, `claim_state` exposed as
+  a job output, and a final step that fails the job when the claim is SUSPECT.
+  Artifact upload runs first, unconditionally.
+- **`scripts/mutation_check.py`** reinstates a fixed defect, asserts the suite
+  goes red, restores the file, and asserts green. CI runs it, so a green suite
+  is falsifiable rather than merely observed. Currently one mutation: the
+  inclusive `(a .. b)` range form, which turns `range_2arg`, `range_nested` and
+  `range_workflow` red.
+- **Status reclassification, deliberate.** `TR01_workflow` now reports ERROR
+  where it previously reported FAIL. Same verdict, same non-zero exit, but the
+  old runner discarded YS's stderr and so recorded an output mismatch instead
+  of the real cause: `let requires an even number of forms in binding vector`.
+  Every other probe's status is unchanged.
+- **Knowledge layer.** `.ce/packs/yamlscript-semantics/` holds eight
+  prescriptive equivalence rules (validated: 8 discovered, 0 skipped) plus
+  `resources/form-mapping.md` as storage, so planning grounds in them and review
+  cites them. `CODING_STANDARDS.md` records the rules this repo has broken.
+
+### Transpiler defects found while hardening, NOT fixed
+
+Both reproduce, and both are covered by a pack rule; neither was in scope here.
+
+1. **`mod` maps to `%`.** `RENAMES` maps both `mod` and `rem` to `%`, so
+   `(mod -7 3)` transpiles to `-7 % 3`, evaluating to `-1` where Clojure gives
+   `2`. YS `%%` is the floored form. `spec.md` already records the correct
+   mapping, so `RENAMES` is the defect. Invisible to any probe using positive
+   operands only.
+2. **`let` in value position emits invalid YS.** `clj-to-ys.py:821` renders
+   `(let [k v] body)` inline as `(let [k=v] ...)` when it appears inside a call
+   argument, which YS rejects. The code comment concedes it: "emit as block
+   would be cleaner but inline for nested use". This is what fails
+   `TR01_workflow`, and it violates `no-block-form-in-value-position.md`.
+
+### Coverage gaps still open
+
+`REPORT.md` section 8 listed unenumerated compositions. Additionally
+`probes/corpus/TR01.clj` and `probes/expected/TR01.json` exist but no probe
+references them, and `convergence-claims/evidence_v1_1/run-v1.1.0.json` is
+superseded by the canonical `convergence-claims/evidence/run-v1.1.0.json`.
+`probes_v1_1/` retains its frozen corpus and expected files in place, referenced
+by the manifest.

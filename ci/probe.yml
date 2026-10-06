@@ -9,37 +9,69 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    outputs:
+      # Consumable by later jobs/workflows: ACTIVE only while the suite passes.
+      claim_state: ${{ steps.claim.outputs.state }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-      - name: Install dependencies
+
+      - name: Install YAMLScript
+        # Every probe executes generated YS through the real `ys`, so a runner
+        # without it verifies nothing. Version comes from the manifest so there
+        # is one place to change it; a mismatch is not comparable evidence.
         run: |
-          # Install YAMLScript if available, otherwise skip
-          pip install --upgrade pip 2>/dev/null || true
+          YS_VERSION=$(python3 -c "import json; print(json.load(open('probes/manifest.json'))['ys_version'])")
+          echo "installing yamlscript==$YS_VERSION"
+          pip install "yamlscript==$YS_VERSION"
+          ys --version
+
       - name: Run probe suite
         id: probes
         run: |
-          cd $GITHUB_WORKSPACE
+          # GitHub's default shell is `bash -e`, so a non-zero pipeline aborts
+          # the step before the code can be recorded - which is how this gate
+          # silently became advisory. Disable errexit around the pipe, then read
+          # the runner's own status via PIPESTATUS; failure is enforced below.
+          set +e
           python3 probes/run_probes.py 2>&1 | tee probe_output.txt
-          echo "EXIT_CODE=$?" >> $GITHUB_ENV
-        continue-on-error: true
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Mutation check
+        # Proves the suite above can fail. Without this, a green run is
+        # unfalsifiable and the claim below means nothing.
+        run: python3 scripts/mutation_check.py
+
       - name: Determine claim state
+        id: claim
         run: |
-          if [ "$EXIT_CODE" = "0" ]; then
-            echo "CLAIM_STATE=ACTIVE" >> $GITHUB_ENV
-            echo "All probes passed - claim remains ACTIVE"
+          if [ "${{ steps.probes.outputs.exit_code }}" = "0" ]; then
+            echo "state=ACTIVE" >> "$GITHUB_OUTPUT"
+            echo "::notice::Probe suite passed - convergence claim remains ACTIVE"
           else
-            echo "CLAIM_STATE=SUSPECT" >> $GITHUB_ENV
-            echo "Probe failures detected - claim becomes SUSPECT"
+            echo "state=SUSPECT" >> "$GITHUB_OUTPUT"
+            echo "::warning::Probe failures detected - convergence claim becomes SUSPECT"
           fi
+
       - name: Upload probe results
-        uses: actions/upload-artifact@v3
         if: always()
+        uses: actions/upload-artifact@v3
         with:
           name: probe-results
           path: |
             convergence-claims/evidence/run-*.json
             probe_output.txt
+
+      # Last, so the artifacts above are uploaded first. The SUSPECT state is a
+      # decision, not advice: a failing suite fails the job.
+      - name: Enforce claim state
+        if: steps.probes.outputs.exit_code != '0'
+        run: |
+          echo "Probe suite did not pass; the cljys convergence claim is SUSPECT."
+          echo "Evidence: see the probe-results artifact."
+          exit 1

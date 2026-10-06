@@ -19,8 +19,14 @@ __pycache__/
 .env.*
 .venv/
 venv/
+.cljys/
 Pipfile.lock
 poetry.lock
+
+# Scratch files from manual poking at the transpiler
+/debug.ys
+/test.clj
+/test.ys
 
 # Data & cache
 .DS_Store
@@ -51,11 +57,21 @@ logs/
 outputs/
 results/
 # Probe evidence and generated artifacts
-probes/run_probes.py
-probes/compositions/*_probe.py
-probes/primitives/*_probe.py
-probes/workflows/*_probe.py
-convergence-claims/evidence/
-ci/
-REPORT.md
+# (probes/run_probes.py, ci/, REPORT.md and convergence-claims/evidence/ are
+# deliberately NOT ignored: the gate, the claims, and the evidence they cite
+# are all reviewable, and a claim that points at unversioned evidence is not
+# checkable.)
+results/
+
+# Node / opencode
+node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+
+# Vendored third-party checkouts (Compound Engineering, pinned by tag in
+# .ce/plugin/PINNED_TAG). The converted skills it produces are committed under
+# .opencode/skills/, so regenerating is reproducible without vendoring a
+# 4.8 MB third-party clone into this history.
+.ce/
+
 STOP.md

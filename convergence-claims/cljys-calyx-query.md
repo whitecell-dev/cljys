@@ -14,7 +14,7 @@
 
 ## Evidence References
 - evidence_refs:
-  - probes/run-v1.0.0.json
+  - convergence-claims/evidence/run-v1.0.0.json
   - probes/compositions/BUG01
   - probes/compositions/PA01
   - probes/compositions/TR02

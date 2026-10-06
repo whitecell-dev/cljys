@@ -1,0 +1,141 @@
+{
+  "manifest_version": "1",
+  "ys_version": "0.2.8",
+  "comment": [
+    "Single source of truth for the probe suite. Adding a probe is a data edit",
+    "here plus a corpus and an expected file - never a new script.",
+    "Paths are repo-relative.",
+    "",
+    "invoke: 'run'   -> ys FILE       (programs that print via say:)",
+    "invoke: 'print' -> ys -p FILE    (programs that evaluate to a value)",
+    "Getting this wrong does not error, it compares the wrong output.",
+    "",
+    "match comes from the expected file: an 'expected_output' key compares",
+    "exactly, an 'expected_output_contains' key requires every listed substring.",
+    "",
+    "v1.1.0's corpus lives under probes_v1_1/ rather than probes/ so those",
+    "frozen files stay byte-identical and in place; the manifest references",
+    "them explicitly. Fold them in under a new suite version when convenient."
+  ],
+  "suites": [
+    {
+      "version": "v1.0.0",
+      "corpus_version": "v1.0.0",
+      "expected_version": "v1.0.0",
+      "probes": [
+        {
+          "id": "BUG01",
+          "kind": "composition",
+          "corpus": "probes/corpus/BUG01.clj",
+          "expected": "probes/expected/BUG01.json",
+          "invoke": "run"
+        },
+        {
+          "id": "PA01",
+          "kind": "composition",
+          "corpus": "probes/corpus/PA01.clj",
+          "expected": "probes/expected/PA01.json",
+          "invoke": "run"
+        },
+        {
+          "id": "TR02",
+          "kind": "composition",
+          "corpus": "probes/corpus/TR02.clj",
+          "expected": "probes/expected/TR02.json",
+          "invoke": "run"
+        },
+        {
+          "id": "P01_def",
+          "kind": "primitive",
+          "corpus": "probes/primitives/P01_def.clj",
+          "expected": "probes/expected/P01_def.json",
+          "invoke": "run"
+        },
+        {
+          "id": "P02_arithmetic",
+          "kind": "primitive",
+          "corpus": "probes/primitives/P02_arithmetic.clj",
+          "expected": "probes/expected/P02_arithmetic.json",
+          "invoke": "run"
+        },
+        {
+          "id": "P06_each",
+          "kind": "primitive",
+          "corpus": "probes/primitives/P06_each.clj",
+          "expected": "probes/expected/P06_each.json",
+          "invoke": "run"
+        },
+        {
+          "id": "P11_range",
+          "kind": "primitive",
+          "corpus": "probes/primitives/P11_range.clj",
+          "expected": "probes/expected/P11_range.json",
+          "invoke": "print"
+        },
+        {
+          "id": "P12_threading",
+          "kind": "primitive",
+          "corpus": "probes/primitives/P12_threading.clj",
+          "expected": "probes/expected/P12_threading.json",
+          "invoke": "print"
+        },
+        {
+          "id": "TR01_simple",
+          "kind": "workflow",
+          "corpus": "probes/workflows/TR01_simple.clj",
+          "expected": "probes/expected/TR01_simple.json",
+          "invoke": "run"
+        },
+        {
+          "id": "TR01_workflow",
+          "kind": "workflow",
+          "corpus": "probes/workflows/TR01_workflow.clj",
+          "expected": "probes/expected/TR01_workflow.json",
+          "invoke": "run"
+        }
+      ]
+    },
+    {
+      "version": "v1.1.0",
+      "corpus_version": "v1.1.0",
+      "expected_version": "v1.1.0",
+      "probes": [
+        {
+          "id": "range_1arg",
+          "kind": "primitive",
+          "corpus": "probes_v1_1/corpus/range_1arg.clj",
+          "expected": "probes_v1_1/expected/range_1arg.json",
+          "invoke": "print"
+        },
+        {
+          "id": "range_2arg",
+          "kind": "primitive",
+          "corpus": "probes_v1_1/corpus/range_2arg.clj",
+          "expected": "probes_v1_1/expected/range_2arg.json",
+          "invoke": "print"
+        },
+        {
+          "id": "range_3arg",
+          "kind": "primitive",
+          "corpus": "probes_v1_1/corpus/range_3arg.clj",
+          "expected": "probes_v1_1/expected/range_3arg.json",
+          "invoke": "print"
+        },
+        {
+          "id": "range_nested",
+          "kind": "composition",
+          "corpus": "probes_v1_1/corpus/range_nested.clj",
+          "expected": "probes_v1_1/expected/range_nested.json",
+          "invoke": "run"
+        },
+        {
+          "id": "range_workflow",
+          "kind": "workflow",
+          "corpus": "probes_v1_1/corpus/range_workflow.clj",
+          "expected": "probes_v1_1/expected/range_workflow.json",
+          "invoke": "run"
+        }
+      ]
+    }
+  ]
+}

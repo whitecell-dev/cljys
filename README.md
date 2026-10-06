@@ -19,7 +19,7 @@ Parsing every edge case of an expressive Lisp with a simple local parser leads t
     v  (LLM Normalization Pass: flattens destructuring & prints)
 [Canonical Clojure Subset]
     |
-    v  (clj_to_ys.py: Local Deterministic AST Map)
+    v  (clj-to-ys.py: Local Deterministic AST Map)
 [Valid YAMLScript Code]
     |
     v  (ys -c compilation)
@@ -28,7 +28,7 @@ Parsing every edge case of an expressive Lisp with a simple local parser leads t
 
 ### 1. Normalize & Transpile
 Feed your expressive Clojure query into the normalization pipeline, then pass it to the Python emitter:
-python3 clj_to_ys.py input.clj -o output.ys
+python3 clj-to-ys.py input.clj -o output.ys
 ### 2. Compile to Native Binary
 Turn the resulting YAMLScript code into a standalone native binary that executes in milliseconds with zero JVM boot overhead:
 ys -c output.ys
@@ -53,7 +53,7 @@ Sequence indexing must use the `(nth vector index)` format rather than calling t
 (def module-49 (nth modules 49))
 ## Components
 
-- `clj_to_ys.py`: The core tokenizer, S-expression parser, and code emitter written in Python. It maps native atoms, infix operators, threading macros (`->`, `->>`), `let` blocks, and `doseq` structures to YAMLScript layouts.
+- `clj-to-ys.py`: The core tokenizer, S-expression parser, and code emitter written in Python. It maps native atoms, infix operators, threading macros (`->`, `->>`), `let` blocks, and `doseq` structures to YAMLScript layouts.
 
 ## License
 

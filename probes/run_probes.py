@@ -1,94 +1,193 @@
 #!/usr/bin/env python3
-"""
-Probe orchestrator for cljys
-Independently verifies generated outputs against expected outputs.
-Does NOT use cljys's validation functions, parser, or assumptions.
+"""Probe orchestrator for cljys.
+
+Runs every probe declared in probes/manifest.json, independently of the
+transpiler's own parser, assumptions, or validation, and writes one evidence
+file per suite.
+
+    python3 probes/run_probes.py                  # all suites
+    python3 probes/run_probes.py --suite v1.1.0   # one suite
+
+Exit code is 0 only when every probe in every selected suite passes, so CI can
+gate on it directly. Evidence lands in
+convergence-claims/evidence/run-<suite version>.json.
 """
 
-import sys
 import json
 import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime
 
-PROBE_DIR = Path(__file__).parent
-ROOT = PROBE_DIR.parent
+ROOT = Path(__file__).resolve().parent.parent
+MANIFEST = Path(__file__).resolve().parent / "manifest.json"
+EVIDENCE = ROOT / "convergence-claims" / "evidence"
 
 
-class ProbeRunner:
-    def __init__(self):
-        self.results = {
-            "probe_suite_version": "v1.0.0",
-            "corpus_version": "v1.0.0",
-            "expected_version": "v1.0.0",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "probes": [],
-        }
+def load_manifest() -> dict:
+    if not MANIFEST.is_file():
+        sys.exit(f"missing {MANIFEST}")
+    return json.loads(MANIFEST.read_text())
 
-    def run_all(self):
-        # Find all probe scripts
-        probe_scripts = []
-        # compositions
-        for p in (PROBE_DIR / "compositions").glob("*_probe.py"):
-            probe_scripts.append(p)
-        # primitives
-        for p in (PROBE_DIR / "primitives").glob("*_probe.py"):
-            probe_scripts.append(p)
-        # workflows
-        for p in (PROBE_DIR / "workflows").glob("*_probe.py"):
-            probe_scripts.append(p)
 
-        for script in sorted(probe_scripts):
-            try:
-                res = subprocess.run(
-                    [sys.executable, str(script)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-                if res.stdout:
-                    try:
-                        data = json.loads(res.stdout)
-                        self.results["probes"].append(data)
-                    except json.JSONDecodeError:
-                        self.results["probes"].append(
-                            {
-                                "probe_id": script.stem,
-                                "status": "ERROR",
-                                "error": f"Failed to parse JSON: {res.stdout}",
-                            }
-                        )
-                else:
-                    self.results["probes"].append(
-                        {
-                            "probe_id": script.stem,
-                            "status": "ERROR",
-                            "error": res.stderr or "No output",
-                        }
-                    )
-            except Exception as e:
-                self.results["probes"].append(
-                    {"probe_id": script.stem, "status": "ERROR", "error": str(e)}
-                )
-        return self.results
+def ys_version() -> str | None:
+    """Installed `ys` version, or None if it is not on PATH."""
+    try:
+        out = subprocess.run(
+            ["ys", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        ).stdout
+    except FileNotFoundError:
+        return None
+    for token in out.split():
+        if token[0].isdigit():
+            return token
+    return None
 
-    def save(self, out_path):
-        with open(out_path, "w") as f:
-            json.dump(self.results, f, indent=2)
+
+def transpile(corpus: Path) -> tuple[str | None, str]:
+    """Clojure -> YS via the transpiler. Returns (ys_code, error)."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "clj-to-ys.py"), str(corpus)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=str(ROOT),
+    )
+    if not result.stdout:
+        return None, result.stderr.strip() or "transpiler produced no output"
+    return result.stdout, None
+
+
+def run_ys(ys_code: str, invoke: str) -> tuple[str, str]:
+    """Execute generated YS. `invoke` selects the run/print distinction."""
+    with tempfile.NamedTemporaryFile("w", suffix=".ys", delete=False) as handle:
+        handle.write(ys_code)
+        tmp = Path(handle.name)
+    try:
+        cmd = ["ys", "-p", str(tmp)] if invoke == "print" else ["ys", str(tmp)]
+        done = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(ROOT)
+        )
+        return done.stdout, done.stderr
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def compare(actual: str, expected_doc: dict) -> tuple[bool, dict | None]:
+    """Exact or substring match, decided by the expected file's own shape."""
+    if "expected_output_contains" in expected_doc:
+        wanted = expected_doc["expected_output_contains"]
+        missing = [c for c in wanted if c not in actual]
+        passed = not missing
+        diff = None if passed else {"expected_contains": wanted, "missing": missing, "actual": actual}
+    else:
+        wanted = expected_doc["expected_output"]
+        passed = actual == wanted
+        diff = (
+            None
+            if passed
+            else {
+                "expected": wanted,
+                "actual": actual,
+                "expected_repr": repr(wanted),
+                "actual_repr": repr(actual),
+            }
+        )
+    return passed, diff
+
+
+def run_probe(probe: dict, suite_version: str) -> dict:
+    probe_id = probe["id"]
+    corpus = ROOT / probe["corpus"]
+    expected_path = ROOT / probe["expected"]
+    record = {
+        "probe_id": probe_id,
+        "suite": suite_version,
+        "kind": probe.get("kind"),
+        "status": "ERROR",
+    }
+    for path in (corpus, expected_path):
+        if not path.is_file():
+            record["error"] = f"missing {path.relative_to(ROOT)}"
+            return record
+
+    source = corpus.read_text()
+    record["input"] = source
+    ys_code, error = transpile(corpus)
+    if ys_code is None:
+        record["error"] = error
+        return record
+
+    actual, ys_err = run_ys(ys_code, probe["invoke"])
+    if ys_err.strip():
+        record["error"] = f"ys failed: {ys_err.strip()}"
+        return record
+
+    expected_doc = json.loads(expected_path.read_text())
+    passed, diff = compare(actual, expected_doc)
+    record["expected_output"] = expected_doc
+    record["actual_output"] = actual
+    record["diff"] = diff
+    record["status"] = "PASS" if passed else "FAIL"
+    record["passed"] = passed
+    return record
+
+
+def run_suite(suite: dict) -> dict:
+    results = {
+        "probe_suite_version": suite["version"],
+        "corpus_version": suite["corpus_version"],
+        "expected_version": suite["expected_version"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "probes": [run_probe(p, suite["version"]) for p in suite["probes"]],
+    }
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    out = EVIDENCE / f"run-{suite['version']}.json"
+    out.write_text(json.dumps(results, indent=2) + "\n")
+    return results
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    manifest = load_manifest()
+
+    installed = ys_version()
+    if installed is None:
+        print("ERROR: `ys` is not on PATH; no probe can be verified.")
+        print("  install with: pip install yamlscript==%s" % manifest["ys_version"])
+        return 2
+    if installed != manifest["ys_version"]:
+        print(
+            f"WARNING: manifest pins ys {manifest['ys_version']}, found {installed}."
+            " Evidence is not comparable across versions."
+        )
+
+    suites = manifest["suites"]
+    if "--suite" in args:
+        wanted = args[args.index("--suite") + 1]
+        suites = [s for s in suites if s["version"] == wanted]
+        if not suites:
+            print(f"no such suite: {wanted}")
+            return 2
+
+    bad = 0
+    for suite in suites:
+        results = run_suite(suite)
+        passed = sum(1 for p in results["probes"] if p["status"] == "PASS")
+        failed = sum(1 for p in results["probes"] if p["status"] == "FAIL")
+        error = sum(1 for p in results["probes"] if p["status"] == "ERROR")
+        print(f"{suite['version']}: {passed} PASS, {failed} FAIL, {error} ERROR")
+        for probe in results["probes"]:
+            if probe["status"] != "PASS":
+                print(f"  {probe['status']:5} {probe['probe_id']}")
+                if probe.get("error"):
+                    print(f"        {probe['error'].splitlines()[0]}")
+        evidence = f"run-{suite['version']}.json"
+        print(f"  evidence: {(EVIDENCE / evidence).relative_to(ROOT)}")
+        bad += failed + error
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    runner = ProbeRunner()
-    results = runner.run_all()
-    # Save to evidence
-    evidence_dir = PROBE_DIR.parent / "convergence-claims" / "evidence"
-    evidence_dir.mkdir(parents=True, exist_ok=True)
-    out_path = evidence_dir / "run-v1.0.0.json"
-    runner.save(out_path)
-    # Print summary
-    passed = sum(1 for p in results["probes"] if p["status"] == "PASS")
-    failed = sum(1 for p in results["probes"] if p["status"] == "FAIL")
-    error = sum(1 for p in results["probes"] if p["status"] == "ERROR")
-    print(f"Probes: {passed} PASS, {failed} FAIL, {error} ERROR")
-    print(f"Results saved to {out_path}")
-    sys.exit(0 if failed == 0 and error == 0 else 1)
+    sys.exit(main())

@@ -2,123 +2,153 @@
   "probe_suite_version": "v1.0.0",
   "corpus_version": "v1.0.0",
   "expected_version": "v1.0.0",
-  "timestamp": "2026-10-05T05:42:32.218282Z",
+  "timestamp": "2026-10-06T05:23:12.850824+00:00",
   "probes": [
     {
       "probe_id": "BUG01",
-      "status": "FAIL",
+      "suite": "v1.0.0",
+      "kind": "composition",
+      "status": "PASS",
       "input": "(doseq [i (range 1 4) j (range 1 3)] (println (* i j)))\n",
-      "expected_output": "1\n2\n2\n4\n3\n6\n",
-      "actual_output": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n",
-      "diff": {
-        "expected": "1\n2\n2\n4\n3\n6\n",
-        "actual": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n",
-        "expected_repr": "'1\\n2\\n2\\n4\\n3\\n6\\n'",
-        "actual_repr": "'1\\n2\\n3\\n2\\n4\\n6\\n3\\n6\\n9\\n4\\n8\\n12\\n'"
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "BUG01: nested doseq with range producing i*j - correct Clojure semantics (range is exclusive of end)",
+        "expected_output": "1\n2\n2\n4\n3\n6\n"
       },
-      "passed": false
+      "actual_output": "1\n2\n2\n4\n3\n6\n",
+      "diff": null,
+      "passed": true
     },
     {
       "probe_id": "PA01",
-      "status": "FAIL",
+      "suite": "v1.0.0",
+      "kind": "composition",
+      "status": "PASS",
       "input": "(doseq [i (range 1 4) j (range 1 3)] (println (* i j)))\n",
-      "expected_output": "1\n2\n2\n4\n3\n6\n",
-      "actual_output": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n",
-      "diff": {
-        "expected": "1\n2\n2\n4\n3\n6\n",
-        "actual": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n"
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "PA01: doseq + range (nested) pair",
+        "expected_output": "1\n2\n2\n4\n3\n6\n"
       },
-      "passed": false
+      "actual_output": "1\n2\n2\n4\n3\n6\n",
+      "diff": null,
+      "passed": true
     },
     {
       "probe_id": "TR02",
-      "status": "FAIL",
+      "suite": "v1.0.0",
+      "kind": "composition",
+      "status": "PASS",
       "input": "(doseq [i (range 1 4) j (range 1 3)] (println (* i j)))\n",
-      "expected_output": "1\n2\n2\n4\n3\n6\n",
-      "actual_output": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n",
-      "diff": {
-        "expected": "1\n2\n2\n4\n3\n6\n",
-        "actual": "1\n2\n3\n2\n4\n6\n3\n6\n9\n4\n8\n12\n"
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "TR02: larger composition with nested range",
+        "expected_output": "1\n2\n2\n4\n3\n6\n"
       },
-      "passed": false
+      "actual_output": "1\n2\n2\n4\n3\n6\n",
+      "diff": null,
+      "passed": true
     },
     {
       "probe_id": "P01_def",
+      "suite": "v1.0.0",
+      "kind": "primitive",
       "status": "PASS",
       "input": "(def x 42)\n",
-      "expected_output": "",
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "P01: basic def assignments",
+        "expected_output": ""
+      },
       "actual_output": "",
       "diff": null,
       "passed": true
     },
     {
       "probe_id": "P02_arithmetic",
+      "suite": "v1.0.0",
+      "kind": "primitive",
       "status": "PASS",
       "input": "(def a (+ 1 2))\n(def b (* 2 3 4))\n(def c (mod 7 3))\n(def d (rem 7 3))\n",
-      "expected_output": "",
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "P02: arithmetic operations",
+        "expected_output": ""
+      },
       "actual_output": "",
       "diff": null,
       "passed": true
     },
     {
       "probe_id": "P06_each",
+      "suite": "v1.0.0",
+      "kind": "primitive",
       "status": "PASS",
       "input": "(each [x [1 2 3]] (println x))\n",
-      "expected_output": "1\n2\n3\n",
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "P06: each iteration",
+        "expected_output": "1\n2\n3\n"
+      },
       "actual_output": "1\n2\n3\n",
       "diff": null,
       "passed": true
     },
     {
       "probe_id": "P11_range",
-      "status": "FAIL",
+      "suite": "v1.0.0",
+      "kind": "primitive",
+      "status": "PASS",
       "input": "(range 1 4)\n",
-      "expected_output": "(1 2 3)\n",
-      "actual_output": "(1 2 3 4)\n",
-      "diff": {
-        "expected": "(1 2 3)\n",
-        "actual": "(1 2 3 4)\n"
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "P11: range produces sequence exclusive of end (Clojure semantics)",
+        "expected_output": "(1 2 3)\n"
       },
-      "passed": false
+      "actual_output": "(1 2 3)\n",
+      "diff": null,
+      "passed": true
     },
     {
       "probe_id": "P12_threading",
+      "suite": "v1.0.0",
+      "kind": "primitive",
       "status": "PASS",
       "input": "(-> [1 2 3] (map inc) (filter even?))\n",
-      "expected_output": "(2 4)\n",
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "P12: threading macro",
+        "expected_output": "(2 4)\n"
+      },
       "actual_output": "(2 4)\n",
       "diff": null,
       "passed": true
     },
     {
       "probe_id": "TR01_simple",
+      "suite": "v1.0.0",
+      "kind": "workflow",
       "status": "PASS",
       "input": "(def ir (json/load (read \"calyx_mcp_v6.json\")))\n(say \"=== SCANNING FOR DEPENDENTS ===\")\n(def r-map (get ir \"R\"))\n(say (str \"Found \" (count r-map) \" modules\"))\n",
-      "expected_contains": [
-        "SCANNING FOR DEPENDENTS",
-        "modules"
-      ],
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "TR01 simple workflow",
+        "expected_output_contains": [
+          "SCANNING FOR DEPENDENTS",
+          "modules"
+        ]
+      },
       "actual_output": "=== SCANNING FOR DEPENDENTS ===\nFound 119 modules\n",
       "diff": null,
       "passed": true
     },
     {
       "probe_id": "TR01_workflow",
-      "status": "FAIL",
+      "suite": "v1.0.0",
+      "kind": "workflow",
+      "status": "ERROR",
       "input": "(def ir (json/load (read \"calyx_mcp_v6.json\")))\n(say \"=== SCANNING FOR DEPENDENTS ===\")\n(def r-map (get ir \"R\"))\n(def targeting-nodes\n  (filter\n   (fn [kv] \n     (let [v (second kv)] \n       (get v \"0\")))\n   r-map))\n(say (str \"Found \" (count targeting-nodes) \" modules\"))\n(each [kv (take 3 targeting-nodes)]\n  (let [module-id (first kv)]\n    (say (str \" -> Module \" module-id))))\n",
-      "expected_contains": [
-        "SCANNING FOR DEPENDENTS",
-        "modules"
-      ],
-      "actual_output": "=== SCANNING FOR DEPENDENTS ===\n",
-      "diff": {
-        "expected_contains": [
-          "SCANNING FOR DEPENDENTS",
-          "modules"
-        ],
-        "actual": "=== SCANNING FOR DEPENDENTS ===\n"
-      },
-      "passed": false
+      "error": "ys failed: Error: let requires an even number of forms in binding vector"
     }
   ]
 }
