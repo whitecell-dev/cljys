@@ -1,0 +1,1 @@
+(def result (reduce + 0 [1 2 3]))

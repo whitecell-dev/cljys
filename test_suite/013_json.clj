@@ -1,0 +1,1 @@
+(def data (json/load "{\"a\":1}"))

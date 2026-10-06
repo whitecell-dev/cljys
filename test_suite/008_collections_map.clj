@@ -1,0 +1,1 @@
+(def result (map inc [1 2 3]))
