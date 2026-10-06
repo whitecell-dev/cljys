@@ -95,7 +95,7 @@ The claim is workflow-scoped (not per-primitive), and it references a specific p
 
 ## 5. CI Binding (Step 5)
 
-CI configuration in `ci/probe.yml`:
+CI configuration in `.github/workflows/probe.yml`:
 - Runs probe suite on push/PR to main/master
 - Executes `python3 probes/run_probes.py`
 - If all probes pass (exit code 0), claim state becomes ACTIVE
@@ -141,7 +141,7 @@ Test code confirms the stopping is mechanical - the worker checks claim state an
 
 - [x] `probes/` with versioned suite (v1.0.0), corpus (v1.0.0), and expected outputs (v1.0.0)
 - [x] `convergence-claims/cljys-calyx-query.md` with specific evidence reference to run-v1.0.0.json
-- [x] `ci/probe.yml` that binds probe results to claim state (mechanical transition)
+- [x] `.github/workflows/probe.yml` that binds probe results to claim state (mechanical transition)
 - [x] `REPORT.md` with enumeration, probe results, claim, CI, and CHALLENGE test
 - [x] All gates satisfied (probes can fail; claim references specific run; CI is mechanical; CHALLENGE path stops worker)
 
@@ -166,9 +166,10 @@ actually executed: the gate was decorative.
 
 | Defect | Location | Effect |
 |---|---|---|
-| `ys` never installed in CI | `ci/probe.yml` | every probe would ERROR on a runner |
-| `$?` read after `\| tee` | `ci/probe.yml` | captured `tee`'s status, always `0`; verified: runner exits 1, old logic reports `EXIT_CODE=0` |
-| `continue-on-error: true` | `ci/probe.yml` | the step could never fail the job |
+| workflow not in `.github/workflows/` | `ci/probe.yml` | GitHub Actions only discovers workflows in `.github/workflows/`, so the suite had never run in CI at all |
+| `ys` never installed in CI | `.github/workflows/probe.yml` | every probe would ERROR on a runner |
+| `$?` read after `\| tee` | `.github/workflows/probe.yml` | captured `tee`'s status, always `0`; verified: runner exits 1, old logic reports `EXIT_CODE=0` |
+| `continue-on-error: true` | `.github/workflows/probe.yml` | the step could never fail the job |
 | suite/corpus/expected versions hardcoded to `v1.0.0`, output path fixed | `probes/run_probes.py` | v1.1.0 evidence was not reproducible by the committed runner; versioning had been solved by forking the suite directory |
 | both claims pointed at evidence paths that do not exist | `convergence-claims/*.md` | evidence refs dangled |
 | 11 near-identical probe scripts | `probes/*/` , `probes_v1_1/` | a new probe cost a code copy |

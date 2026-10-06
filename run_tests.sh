@@ -3,7 +3,7 @@
 # Test runner for clj_to_ys.py transpiler
 # Usage: ./run_tests.sh
 
-INPUT_DIR="test_primitives"
+INPUT_DIR="test_suite"
 OUTPUT_DIR="results"
 TRANSPILER="python3 clj-to-ys.py"
 
