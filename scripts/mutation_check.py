@@ -36,6 +36,18 @@ MUTATIONS = [
         "must_fail": "v1.1.0",
         "why": "REPORT.md section 10: `(a .. b)` is inclusive in YS, `(range a b)` is not",
     },
+    {
+        "name": "mod-reverts-to-remainder",
+        "file": "clj-to-ys.py",
+        # OP_MAP, not RENAMES: `(mod a b)` dispatches through _infix at
+        # clj-to-ys.py:804, so RENAMES' entry is shadowed for this path and a
+        # mutation there would leave the suite green. Verified empirically.
+        "find": '    "or": "||",\n    "mod": "%%",',
+        "replace": '    "or": "||",\n    "mod": "%",',
+        "must_fail": "v1.2.0",
+        "why": "spec.md:141 and modulo-is-not-remainder.md: mod is floored (%%), rem is truncated (%); "
+        "they agree on positive operands, so only a negative dividend separates them",
+    },
 ]
 
 

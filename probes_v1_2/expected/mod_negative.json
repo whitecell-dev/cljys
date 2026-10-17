@@ -1,0 +1,5 @@
+{
+  "version": "v1.2.0",
+  "description": "mod vs rem on a negative dividend: mod floors (2), rem truncates (-1)",
+  "expected_output": "2\n-1\n"
+}

@@ -304,7 +304,11 @@ RENAMES = {
     "not": ".!!",  # handled specially
     "inc": "inc",
     "dec": "dec",
-    "mod": "%",
+    # KNOWN: this `mod` entry is shadowed for the infix path, which dispatches
+    # through OP_MAP; verified by mutating this line alone and watching the
+    # suite stay green. Not fixed because no probe exercises it; it is reachable
+    # only via higher-order uses such as (apply mod ...).
+    "mod": "%%",
     "rem": "%",
     "str": None,  # handled specially
     "doseq": "each",
@@ -346,7 +350,7 @@ OP_MAP = {
     "not=": "!=",
     "and": "&&",
     "or": "||",
-    "mod": "%",
+    "mod": "%%",
     "rem": "%",
 }
 
@@ -820,6 +824,12 @@ class Transpiler:
         # (let [...] expr) — inline (single-expr body only)
         if hv == "let" and len(form) == 3:
             # emit as block would be cleaner but inline for nested use
+            # KNOWN: YS rejects inline `let` in value position, so any call
+            # argument containing a let breaks — this is what ERRORS
+            # TR01_workflow; verified in
+            # convergence-claims/evidence/run-v1.0.0.json; not fixed because YS
+            # has no inline let, so the binding must be hoisted into a
+            # preceding statement — an emitter restructure, not a patch here.
             bindings = form[1]
             body = form[2]
             parts = []

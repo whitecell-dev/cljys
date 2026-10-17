@@ -1,0 +1,38 @@
+{
+  "probe_suite_version": "v1.2.0",
+  "corpus_version": "v1.2.0",
+  "expected_version": "v1.2.0",
+  "timestamp": "2026-10-17T16:48:24.225865+00:00",
+  "probes": [
+    {
+      "probe_id": "mod_negative",
+      "suite": "v1.2.0",
+      "kind": "primitive",
+      "status": "PASS",
+      "input": ";; Clojure's mod is floored division; rem is truncated. They agree on\n;; positive operands and disagree on a negative dividend, so a probe using\n;; only positive operands cannot tell the two apart. v1.0.0's P02_arithmetic\n;; is exactly that blind case (expected_output \"\"). Expected values are\n;; Clojure's, confirmed against `ys -p -e`: (-7 %% 3) = 2, (-7 % 3) = -1.\n;; See compound-packs/yamlscript-semantics/modulo-is-not-remainder.md.\n(def a (mod -7 3))\n(def b (rem -7 3))\n(say a)\n(say b)",
+      "expected_output": {
+        "version": "v1.2.0",
+        "description": "mod vs rem on a negative dividend: mod floors (2), rem truncates (-1)",
+        "expected_output": "2\n-1\n"
+      },
+      "actual_output": "2\n-1\n",
+      "diff": null,
+      "passed": true
+    },
+    {
+      "probe_id": "binding_coll",
+      "suite": "v1.2.0",
+      "kind": "composition",
+      "status": "PASS",
+      "input": ";; clj-to-ys.py _binding_coll: a literal vector cannot sit in an `each`\n;; binding position, so a contiguous ascending run of integer literals becomes\n;; a YS range and anything else is hoisted into a temp binding. Both branches\n;; are here; no probe covered this emitter branch before v1.2.0.\n(doseq [x [1 2 3]]\n  (say x))\n\n(doseq [y [1 5 3]]\n  (say y))",
+      "expected_output": {
+        "version": "v1.2.0",
+        "description": "_binding_coll: contiguous literals become an inclusive YS range, non-contiguous hoist to a temp",
+        "expected_output": "1\n2\n3\n1\n5\n3\n"
+      },
+      "actual_output": "1\n2\n3\n1\n5\n3\n",
+      "diff": null,
+      "passed": true
+    }
+  ]
+}

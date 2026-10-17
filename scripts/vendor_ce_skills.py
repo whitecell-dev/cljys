@@ -10,8 +10,12 @@ Source: .ce/plugin (pinned tag, see .ce/plugin/PINNED_TAG)
 Output: .opencode/skills/<name>/SKILL.md  (opencode's default project skill dir)
 
 Usage:
-    python3 .ce/vendor-skills.py           # (re)generate .opencode/skills/
-    python3 .ce/vendor-skills.py --check   # fail if .ce/skills/ drifted from source
+    python3 scripts/vendor_ce_skills.py           # (re)generate .opencode/skills/
+    python3 scripts/vendor_ce_skills.py --check   # fail if output drifted from source
+
+Requires a `.ce/plugin` checkout, which is gitignored. In a fresh clone this
+script cannot run and `--check` fails: the vendored output is committed, but its
+source is not, so the committed skills are not reproducible from a clone alone.
 """
 
 import sys

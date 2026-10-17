@@ -32,13 +32,14 @@ for clj_file in "$INPUT_DIR"/*.clj; do
 
     # Check if transpiler succeeded (no error output)
     if [ ! -s "$error_file" ]; then
-      # Also check if output is valid YAMLScript (ys -c)
+      # `ys FILE` executes the emitted YS, so this catches invalid output and
+      # runtime failures alike; `ys -c` would only compile it.
       if ys "$output_file" >/dev/null 2>&1; then
-        echo "  ✅ PASS - Valid YAMLScript"
+        echo "  ✅ PASS - executes under ys"
         PASSED=$((PASSED + 1))
         rm -f "$error_file" # Clean up empty error file
       else
-        echo "  ❌ FAIL - YS compilation error"
+        echo "  ❌ FAIL - ys could not run the output"
         FAILED=$((FAILED + 1))
       fi
     else
@@ -70,3 +71,7 @@ if [ $FAILED -gt 0 ]; then
     fi
   done
 fi
+
+# Exit on the verdict, not on the status of the last command run. Without this
+# the script always exits 0 and silently swallows a failing case.
+[ "$FAILED" -eq 0 ]

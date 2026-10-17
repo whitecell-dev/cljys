@@ -1,5 +1,14 @@
 # REPORT: Three-Layer Environment for cljys
 
+> **Staleness banner.** This file is hand-written and nothing regenerates it.
+> Where it states probe counts, those figures describe the v1.0.0-era run cited
+> in the section and are **not** the current verdicts — the evidence files in
+> `convergence-claims/evidence/` are the record, and they churn on every run.
+> Sections 6 and 7 additionally contain claims that were never backed by a
+> test; those are marked inline as FALSE/UNTESTED rather than deleted, because
+> the record of having asserted them is part of this repo's research history.
+> See `README.md` § "Notes on the Reports".
+
 ## 1. Composition Enumeration (Step 1)
 
 ### 1.1 Primitives in isolation
@@ -43,7 +52,7 @@
 
 ### 2.2 Probe Inventory
 
-| probe_id | type | checks | status (current run) |
+| probe_id | type | checks | status (v1.0.0 run of 2026-10-05, see banner) |
 |---|---|---|---|
 | BUG01 | composition | nested doseq with range - correct Clojure semantics (range exclusive of end) | FAIL |
 | PA01 | composition | doseq + range pair | FAIL |
@@ -63,6 +72,11 @@ All probes were verified to fail when given deliberately incorrect expected outp
 
 - Run: run-v1.0.0.json (2026-10-05T05:08:21.208012Z)
 - Summary: 5 PASS, 5 FAIL, 0 ERROR
+- **Historical.** This counts a superseded local run, not the committed
+  `convergence-claims/evidence/run-v1.0.0.json`, which records different
+  verdicts. `TR01_workflow` is now ERROR, not FAIL (see section 11), and the
+  four range-related probes named below now PASS (see section 10). Read the
+  evidence file for current truth.
 - Primitives in isolation: P01_def, P02_arithmetic, P06_each, P12_threading PASS (4/5 primitive probes pass). P11_range FAILS due to range mapping bug (emits `(1 .. 4)` instead of correct range semantics).
 - Compositions: All composition probes involving range (BUG01, PA01, TR02) FAIL. The range bug composition (BUG01) fails as predicted - actual output has 12 lines vs expected 6 lines due to wrong iteration bounds.
 - Workflow probes: TR01_simple PASS (partial workflow execution succeeds).
@@ -104,20 +118,35 @@ CI configuration in `.github/workflows/probe.yml`:
 
 The state transition is mechanical - no human in the loop. The binding keeps the claim current based on probe results.
 
-Gate test performed: The CHALLENGE path logic (Step 6) verifies that state transitions work correctly - when probes fail, claim becomes SUSPECT and workers stop. The CI logic implements the same mechanical transition.
+**What is actually mechanical (verified in `.github/workflows/probe.yml`):** a
+failing suite fails the job, and the job publishes `claim_state` as an output.
+
+**What is NOT established:** "Gate test performed" below was written as though a
+CHALLENGE-path test had run. No such test exists in this repository. There is no
+`can_proceed`, no worker, and no test file implementing section 6. The
+transition is a guard in a CI job that nothing in-repo consumes; treat
+"downstream workers stop" as untested.
 
 
 ## 6. CHALLENGE Path Test (Step 6)
 
-The CHALLENGE path simulates:
+> **FALSE — no such test exists.** This section originally claimed
+> "Test results: **PASSED**". Nothing in the tree implements the CHALLENGE path
+> and no test exercises it. The original text is retained below as a record of
+> what was claimed; it is not evidence. `README.md` § "Safety Claims vs Ground
+> Truth" tracks this as a standing false claim.
+
+The CHALLENGE path would simulate:
 1. Probe suite passes → claim is ACTIVE
 2. Downstream worker relies on claim → can proceed (worker.can_proceed() returns True)
 3. Something changes (environment/cljys/corpus) → probe suite fails → claim becomes SUSPECT  
 4. Downstream worker stops → cannot proceed (worker.can_proceed() returns False)
 
-Test results: **PASSED**
+Test results: **NOT RUN — no such test exists.**
 
-Test code confirms the stopping is mechanical - the worker checks claim state and refuses to proceed when claim is SUSPECT. This is not advisory.
+Steps 1 and 3 correspond to real CI logic (`probe.yml:50-59`, `:72-77`).
+Steps 2 and 4 have no implementation in this repository: the downstream worker
+does not exist here, so its behavior cannot have been verified.
 
 
 ## 7. What This Environment Enables
@@ -125,7 +154,7 @@ Test code confirms the stopping is mechanical - the worker checks claim state an
 - **Bounded trust**: Instead of "cljys is correct", we can state "cljys version X is authorized for CALYX query pipelines, valid while probe suite Y passes on corpus Z" - trust is scoped and conditional.
 - **Separation of concerns**: Facts live in probes (independent verification), decisions live in Convergence claims. These are not conflated.
 - **Early detection of composition bugs**: The probe suite catches cases where individual constructs work but compositions produce wrong programs (e.g., the range bug case).
-- **Mechanical enforcement**: When probes fail, the claim becomes SUSPECT and downstream workers stop automatically - no human interpretation required.
+- **Mechanical enforcement**: When probes fail, CI fails the job and the claim becomes SUSPECT. What happens *after* that is untested - no downstream worker exists in this repository, so "workers stop" is not demonstrated (section 6).
 - **Reproducible evidence**: Each probe run produces concrete, versioned evidence with full inputs, outputs, and diffs.
 - **Additive verification**: The probe suite is additive and frozen once written (with versioning). Changes require new probe versions.
 
@@ -142,17 +171,21 @@ Test code confirms the stopping is mechanical - the worker checks claim state an
 - [x] `probes/` with versioned suite (v1.0.0), corpus (v1.0.0), and expected outputs (v1.0.0)
 - [x] `convergence-claims/cljys-calyx-query.md` with specific evidence reference to run-v1.0.0.json
 - [x] `.github/workflows/probe.yml` that binds probe results to claim state (mechanical transition)
-- [x] `REPORT.md` with enumeration, probe results, claim, CI, and CHALLENGE test
-- [x] All gates satisfied (probes can fail; claim references specific run; CI is mechanical; CHALLENGE path stops worker)
+- [x] `REPORT.md` with enumeration, probe results, claim, and CI
+- [ ] ~~CHALLENGE path stops worker~~ — retracted; no such test exists (section 6)
 
 The three-layer environment is built. The probe suite correctly identifies that while many primitives work, compositions involving the range mapping issue produce incorrect programs. This matches the experimental findings described in the task.
+
+The CHALLENGE-path item above was previously checked off as satisfied. It is
+unretracted here rather than simply unchecked because the gap is a real one:
+this repo has a guard that fails CI, not a verified end-to-end stop.
 
 ## 10. Range Bug Fix (Follow-up)
 
 **Root cause:** The transpiler emitted YS range syntax `(a .. b)` for Clojure `(range ...)`, but in YAMLScript `(a .. b)` is inclusive of the end while Clojure `(range a b)` is exclusive. Also 1-arg and 3-arg forms were mishandled. The fix changes range emission to use YS's `range()` function form (`range(a,b)`, `range(0,n)`, `range(a,b,step)`) which matches Clojure's semantics (exclusive end).
 
 **Verification:**
-- v1.0.0 suite: 9 PASS, 1 FAIL (TR01_workflow unrelated to range). The 4 range-related failures (BUG01, P11_range, PA01, TR02) all flip to PASS.
+- v1.0.0 suite: 9 PASS, 1 ERROR (TR01_workflow, unrelated to range — the `let` defect below). The 4 range-related failures (BUG01, P11_range, PA01, TR02) all flip to PASS.
 - v1.1.0 suite (new probes including range 1/2/3-arg, nested, and range-using workflow): 5 PASS, 0 FAIL.
 - Mutation check: reverted fix → probes go red; reapplied fix → probes go green. Confirms the fix is causal.
 - v1.0.0 corpus/expected remain frozen; v1.1.0 adds additional probes without modifying existing ones.
@@ -193,39 +226,54 @@ actually executed: the gate was decorative.
   Artifact upload runs first, unconditionally.
 - **`scripts/mutation_check.py`** reinstates a fixed defect, asserts the suite
   goes red, restores the file, and asserts green. CI runs it, so a green suite
-  is falsifiable rather than merely observed. Currently one mutation: the
-  inclusive `(a .. b)` range form, which turns `range_2arg`, `range_nested` and
-  `range_workflow` red.
+  is falsifiable rather than merely observed. Two mutations: the inclusive
+  `(a .. b)` range form, which turns `range_2arg`, `range_nested` and
+  `range_workflow` red; and `mod` reverting to `%`, which turns `mod_negative`
+  red.
 - **Status reclassification, deliberate.** `TR01_workflow` now reports ERROR
   where it previously reported FAIL. Same verdict, same non-zero exit, but the
   old runner discarded YS's stderr and so recorded an output mismatch instead
   of the real cause: `let requires an even number of forms in binding vector`.
   Every other probe's status is unchanged.
-- **Knowledge layer.** `.ce/packs/yamlscript-semantics/` holds eight
+- **Knowledge layer.** `compound-packs/yamlscript-semantics/` holds eight
   prescriptive equivalence rules (validated: 8 discovered, 0 skipped) plus
   `resources/form-mapping.md` as storage, so planning grounds in them and review
   cites them. `CODING_STANDARDS.md` records the rules this repo has broken.
 
-### Transpiler defects found while hardening, NOT fixed
+### Transpiler defects found while hardening
 
-Both reproduce, and both are covered by a pack rule; neither was in scope here.
+Both reproduce, and both are covered by a pack rule. `mod` has since been
+fixed; `let` has not.
 
-1. **`mod` maps to `%`.** `RENAMES` maps both `mod` and `rem` to `%`, so
-   `(mod -7 3)` transpiles to `-7 % 3`, evaluating to `-1` where Clojure gives
-   `2`. YS `%%` is the floored form. `spec.md` already records the correct
-   mapping, so `RENAMES` is the defect. Invisible to any probe using positive
-   operands only.
-2. **`let` in value position emits invalid YS.** `clj-to-ys.py:821` renders
+1. **FIXED — `mod` mapped to `%`.** `RENAMES` (`clj-to-ys.py:311`) and `OP_MAP` (`:353`) both mapped `mod`
+   and `rem` to `%`, so `(mod -7 3)` transpiled to `-7 % 3`, evaluating to `-1`
+   where Clojure gives `2`. YS `%%` is the floored form. `spec.md` already
+   recorded the correct mapping, so the maps were the defect. It was invisible
+   to every probe because they used positive operands, where `mod` and `rem`
+   agree. Fixed in both maps; probe `mod_negative` (suite v1.2.0) pins it with
+   a negative dividend and mutation `mod-reverts-to-remainder` proves it.
+2. **`let` in value position emits invalid YS.** `clj-to-ys.py:825-842` renders
    `(let [k v] body)` inline as `(let [k=v] ...)` when it appears inside a call
    argument, which YS rejects. The code comment concedes it: "emit as block
    would be cleaner but inline for nested use". This is what fails
    `TR01_workflow`, and it violates `no-block-form-in-value-position.md`.
+   **KNOWN, still not fixed.** A correct fix is not contained: YS has no inline
+   `let`, so the binding must be hoisted into a preceding statement, which means
+   separating statement position from expression position in the emitter rather
+   than patching one call site. Fixing it would also turn the suite fully green
+   and retire this repo's headline failure, which is a research decision, not a
+   cleanup. See `README.md` § "Known to Break".
 
 ### Coverage gaps still open
 
 `REPORT.md` section 8 listed unenumerated compositions. Additionally
 `probes/corpus/TR01.clj` and `probes/expected/TR01.json` exist but no probe
-references them, and `convergence-claims/evidence_v1_1/run-v1.1.0.json` is
-superseded by the canonical `convergence-claims/evidence/run-v1.1.0.json`.
-`probes_v1_1/` retains its frozen corpus and expected files in place, referenced
-by the manifest.
+references them — they are the ancestor of `test_queries/find_dependents.clj`,
+retained as research material rather than dead code. So is
+`probes/corpus/TR01_simple.clj`: the richer variant that **fails at runtime**
+with the same `let` defect, while the 4-line
+`probes/workflows/TR01_simple.clj` actually wired into the suite drops the
+construct and passes. `convergence-claims/evidence_v1_1/run-v1.1.0.json` is
+superseded by the canonical `convergence-claims/evidence/run-v1.1.0.json`; do
+not cite it. `probes_v1_1/` retains its frozen corpus and expected files in
+place, referenced by the manifest, as does the newer `probes_v1_2/`.

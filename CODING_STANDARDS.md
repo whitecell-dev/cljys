@@ -14,7 +14,7 @@ gotten wrong, or one whose violation would be invisible in the output.
    scripts were deleted for this reason; `git log` still has them.
 3. **A new form family needs its equivalence rule first.** Before implementing
    a Clojure construct, add a rule to
-   `.ce/packs/yamlscript-semantics/` stating how it maps and where Clojure and
+   `compound-packs/yamlscript-semantics/` stating how it maps and where Clojure and
    YS disagree. Implementation follows the rule, not the other way round.
 4. **Corpus and expected files are frozen.** A wrong expected output is fixed by
    adding a new suite version, never by editing an existing `expected/*.json`.
@@ -48,8 +48,10 @@ gotten wrong, or one whose violation would be invisible in the output.
 
 ## Documentation
 
-12. **A command in the README must run.** It names `clj_to_ys.py`; the file is
-    `clj-to-ys.py`. Check the filename against the tree before publishing.
+12. **A command in the docs must run.** Check the filename and path against the
+    tree before publishing. This repo has shipped three such errors: `clj_to_ys.py`
+    for `clj-to-ys.py`, `.ce/packs/` for `compound-packs/`, and
+    `.ce/vendor-skills.py` for `scripts/vendor_ce_skills.py`.
 13. **`spec.md` is canonical for mappings; the code is not.** Where they
-    disagree, `spec.md` is right and the emitter is the bug — `RENAMES` maps
+    disagree, `spec.md` is right and the emitter is the bug — `RENAMES` mapped
     `mod` to `%` where the spec says `%%`. Fix the code, not the spec.

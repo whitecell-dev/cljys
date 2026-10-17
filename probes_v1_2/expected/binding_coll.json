@@ -1,0 +1,5 @@
+{
+  "version": "v1.2.0",
+  "description": "_binding_coll: contiguous literals become an inclusive YS range, non-contiguous hoist to a temp",
+  "expected_output": "1\n2\n3\n1\n5\n3\n"
+}
