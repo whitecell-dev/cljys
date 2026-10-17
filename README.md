@@ -221,9 +221,9 @@ cljys/
 ├── calyx_mcp_v6.json         444 KB tracked JSON fixture. Two probes actually read it at runtime.
 ├── AGENTS.md                 Agent operating mode for this repo.
 ├── LICENSE                   MIT.
-├── run_tests.sh              Only aggregate runner over test_suite/. Always exits 0.
+├── run_tests.sh              Only aggregate runner over test_suite/. Exits non-zero if any case fails.
 ├── generate_tests.py         Regenerates test_suite/.
-├── .compound-engineering/    config.yaml; points at the pack above. docs_root: docs, which does not exist.
+├── .compound-engineering/    config.yaml; points at the pack above. docs_root: docs, which does not exist yet.
 ├── .ce/                      GITIGNORED vendored third-party checkout. Its README documents paths that don't exist. Not project code.
 ├── .cljys/                   GITIGNORED local venv. Not on PATH; `ys` is installed globally instead.
 ├── .opencode/skills/         Generated from .ce/ by scripts/vendor_ce_skills.py. Do not hand-edit.
@@ -231,6 +231,22 @@ cljys/
 ├── test.clj / test.ys / debug.ys   GITIGNORED scratch from manual poking.
 └── __pycache__/              GITIGNORED.
 ```
+
+### Three kinds of probe artifact, not to be conflated
+
+| Kind | Where | Expected verdict | Editable |
+|---|---|---|---|
+| **Regression suite** | entries in `probes/manifest.json` | passes | corpus/expected are frozen; changes need a new suite version |
+| **Failure fixture** | e.g. `probes/corpus/TR01_simple.clj` | *fails*, by design | yes, if it still reproduces the defect it names |
+| **Historical record** | `convergence-claims/evidence*/` | immutable | never — regenerated only by running the probes |
+
+A file in `probes/` that no manifest entry names is not automatically dead
+code. Two current examples are deliberate: `probes/corpus/TR01.clj` is the
+ancestor of `test_queries/find_dependents.clj`, and
+`probes/corpus/TR01_simple.clj` reproduces the `let` defect that the wired
+4-line probe was simplified to avoid. Both carry a header saying so. Wiring a
+failure fixture into the manifest would add a permanent ERROR to CI rather than
+a regression signal, so the harness has no "expected to fail" concept yet.
 
 ## Safety Claims vs Ground Truth
 
