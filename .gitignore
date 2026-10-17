@@ -23,6 +23,12 @@ venv/
 Pipfile.lock
 poetry.lock
 
+# The `ys` CLI, unpacked by the install recipe in README.md. A release tarball,
+# ~76 MB, never a source file. The pinned version lives in probes/manifest.json.
+ys-*-linux-x64/
+ys-*-macos-*/
+ys-*-windows-*/
+
 # Scratch files from manual poking at the transpiler
 /debug.ys
 /test.clj

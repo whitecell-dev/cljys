@@ -1,0 +1,5 @@
+{
+  "version": "v1.3.0",
+  "description": "two-key map literal; both keys readable, asserted by lookup because YS map print order is not stable across ys versions",
+  "expected_output": "1\n2\n"
+}

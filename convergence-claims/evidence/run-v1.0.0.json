@@ -2,7 +2,7 @@
   "probe_suite_version": "v1.0.0",
   "corpus_version": "v1.0.0",
   "expected_version": "v1.0.0",
-  "timestamp": "2026-10-17T16:48:50.280427+00:00",
+  "timestamp": "2026-10-17T22:29:11.765012+00:00",
   "probes": [
     {
       "probe_id": "BUG01",
@@ -146,9 +146,19 @@
       "probe_id": "TR01_workflow",
       "suite": "v1.0.0",
       "kind": "workflow",
-      "status": "ERROR",
+      "status": "PASS",
       "input": "(def ir (json/load (read \"calyx_mcp_v6.json\")))\n(say \"=== SCANNING FOR DEPENDENTS ===\")\n(def r-map (get ir \"R\"))\n(def targeting-nodes\n  (filter\n   (fn [kv] \n     (let [v (second kv)] \n       (get v \"0\")))\n   r-map))\n(say (str \"Found \" (count targeting-nodes) \" modules\"))\n(each [kv (take 3 targeting-nodes)]\n  (let [module-id (first kv)]\n    (say (str \" -> Module \" module-id))))\n",
-      "error": "ys failed: Error: let requires an even number of forms in binding vector"
+      "expected_output": {
+        "version": "v1.0.0",
+        "description": "TR01 workflow: find_dependents query shape",
+        "expected_output_contains": [
+          "SCANNING FOR DEPENDENTS",
+          "modules"
+        ]
+      },
+      "actual_output": "=== SCANNING FOR DEPENDENTS ===\nFound 17 modules\n -> Module 50\n -> Module 49\n -> Module 28\n",
+      "diff": null,
+      "passed": true
     }
   ]
 }

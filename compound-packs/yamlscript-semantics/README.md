@@ -19,8 +19,8 @@ referenced from the rules below, never read as a rule itself.
 |---|---|
 | `range-end-is-exclusive.md` | iteration bounds, the bug that started this pack |
 | `modulo-is-not-remainder.md` | `mod` vs `rem`, sign of the result |
-| `no-block-form-in-value-position.md` | `each`/`defn`/`cond`/block-`if` hoisting |
-| `collection-literals-need-plus-prefix.md` | `+[...]`, `+{...}`, no implicit call |
+| `no-block-form-in-value-position.md` | `each`/`defn`/`cond`/block-`if` hoisting; `let` is scalar, with its own two constraints |
+| `collection-literals-need-plus-prefix.md` | `+[...]`, `hash-map("k" v)`, no implicit call, no printed maps in tests |
 | `each-binding-is-two-forms.md` | binding shape and collection-literal hoisting |
 | `ys-identifiers-cannot-start-with-underscore.md` | generated binding names |
 | `say-takes-one-expression.md` | `println`/`print` arity |
@@ -37,3 +37,13 @@ both contradictions and cannot pick a winner.
 
 A rule earns its place by a divergence someone has hit or could plausibly hit.
 If it only restates what YS's own docs say, it is a `resources/` entry instead.
+
+## Correcting a rule
+
+Rules are corrected in place, never silently: append a dated entry to a
+`## Corrections` section in the rule itself, saying what was wrong, what
+replaced it, and how it was verified. Two of these rules have one
+(`collection-literals-need-plus-prefix.md`, `no-block-form-in-value-position.md`),
+both dated 2026-10-17, and in both cases the wrong claim was found by executing
+`ys` rather than reading its documentation. Assume any claim here that has not
+been run is a hypothesis, including the ones you wrote.

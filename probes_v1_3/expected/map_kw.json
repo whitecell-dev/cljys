@@ -1,0 +1,5 @@
+{
+  "version": "v1.3.0",
+  "description": "keyword-key map literal renders a quoted key; lookup returns the value",
+  "expected_output": "1\n"
+}
