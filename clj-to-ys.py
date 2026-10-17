@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-clj_to_ys.py — Tiny Clojure → YAMLScript transpiler
+clj-to-ys.py — Tiny Clojure → YAMLScript transpiler
 
 Handles the subset of Clojure produced by CALYX IR query scripts:
   def, defn, defn-, println/print, fn, filter, map, doseq, take,
@@ -8,9 +8,9 @@ Handles the subset of Clojure produced by CALYX IR query scripts:
   and the destructuring patterns used in IR traversal.
 
 Usage:
-  python3 clj_to_ys.py input.clj            # prints YS to stdout
-  python3 clj_to_ys.py input.clj -o out.ys  # writes to file
-  echo '(println "hi")' | python3 clj_to_ys.py -
+  python3 clj-to-ys.py input.clj            # prints YS to stdout
+  python3 clj-to-ys.py input.clj -o out.ys  # writes to file
+  echo '(println "hi")' | python3 clj-to-ys.py -
 """
 
 import re
@@ -687,7 +687,7 @@ class Transpiler:
             items = " ".join(self.expr(x) for x in form)
             return f"+[{items}]"
 
-        # ---- Map literal {k v ...} → hash-map('k' v, ...) ----
+        # ---- Map literal {k v ...} → hash-map("k" v, ...) ----
         if is_map_literal(form):
             # YS code mode forbids flow mappings, so the obvious
             # `+{k: v, ...}` is not even a YAML document ("mapping values
@@ -706,7 +706,15 @@ class Transpiler:
             it = iter(form)
             for k in it:
                 v = next(it, None)
-                ks = self.expr(k)
+                # A keyword key has to be quoted. `expr()` on a keyword drops
+                # the colon, so hash-map(a 1) makes YS resolve `a` as a symbol
+                # and fail with "Could not resolve symbol: a" - silently wrong
+                # for the whole map, not just that key. Non-literal keys
+                # (computed keys) go through expr() unchanged.
+                if isinstance(k, Token) and k.kind == "KW":
+                    ks = '"' + k.val.lstrip(":") + '"'
+                else:
+                    ks = self.expr(k)
                 vs = self.expr(v) if v is not None else "nil"
                 pairs.append(f"{ks} {vs}")
             return "hash-map(" + " ".join(pairs) + ")"
@@ -821,15 +829,13 @@ class Transpiler:
             val = self.expr(form[2]) if len(form) > 2 else "nil"
             return f"{test}.when({val})"
 
-        # (let [...] expr) — inline (single-expr body only)
+# (let [...] expr) — inline (single-expr body only)
         if hv == "let" and len(form) == 3:
-            # emit as block would be cleaner but inline for nested use
-            # KNOWN: YS rejects inline `let` in value position, so any call
-            # argument containing a let breaks — this is what ERRORS
-            # TR01_workflow; verified in
-            # convergence-claims/evidence/run-v1.0.0.json; not fixed because YS
-            # has no inline let, so the binding must be hoisted into a
-            # preceding statement — an emitter restructure, not a patch here.
+            # YS's `let` wants name/value PAIRS. Clojure's `name=init` binding
+            # form is legal Clojure and illegal YS, so emitting `[k=v]` fails
+            # with "let requires an even number of forms in binding vector" —
+            # which is what made TR01_workflow ERROR. Value position is fine
+            # (spec.md, and the scalar list in no-block-form-in-value-position).
             bindings = form[1]
             body = form[2]
             parts = []
@@ -837,9 +843,17 @@ class Transpiler:
             while i < len(bindings) - 1:
                 n = atom_val(bindings[i])
                 v = self.expr(bindings[i + 1])
-                parts.append(f"{n}={v}")
+                parts.append(f"{n} {v}")
                 i += 2
-            return f"(let [{' '.join(parts)}] {self.expr(body)})"
+            body_s = self.expr(body)
+            # An unparenthesized infix body is evaluated as its LAST OPERAND:
+            # (let [n 3] n + 1) is 1, not 4. Wrapping it in parentheses fixes
+            # it, and only an infix body may be wrapped — a bare `(n)` would
+            # be a call of n, which is not callable. Verified on ys 0.2.8 and
+            # 0.3.5; see docs/clojure-vs-ys-gotchas.md.
+            if self._is_infix(body):
+                body_s = f"({body_s})"
+            return f"(let [{' '.join(parts)}] {body_s})"
 
         # (apply f coll)
         if hv == "apply":
@@ -986,6 +1000,19 @@ class Transpiler:
             return f"{ys_op}({self.expr(args[0])})"
         parts = [self.expr(a) for a in args]
         return f" {ys_op} ".join(parts)
+
+    def _is_infix(self, form) -> bool:
+        """True if expr(form) would render as a top-level infix expression.
+
+        Mirrors the dispatch in expr() rather than sniffing the rendered text:
+        one arg renders as a call form, not an infix one.
+        """
+        if not is_list(form) or form.bracket != "(" or len(form) < 3:
+            return False
+        head = form[0]
+        return isinstance(head, Token) and (
+            head.val in INFIX_OPS or head.val in OP_MAP
+        )
 
     # ---- chain target ----
 

@@ -21,12 +21,17 @@ jobs:
 
       - name: Install YAMLScript
         # Every probe executes generated YS through the real `ys`, so a runner
-        # without it verifies nothing. Version comes from the manifest so there
-        # is one place to change it; a mismatch is not comparable evidence.
+        # without it verifies nothing. The PyPI `yamlscript` package does NOT
+        # ship that CLI - it installs libys plus a Python binding and no
+        # `ys` entry point - so pip-installing it leaves every probe unable to
+        # run. The CLI is a GitHub release asset. Version comes from the
+        # manifest so there is one place to change it; a mismatch is not
+        # comparable evidence.
         run: |
           YS_VERSION=$(python3 -c "import json; print(json.load(open('probes/manifest.json'))['ys_version'])")
-          echo "installing yamlscript==$YS_VERSION"
-          pip install "yamlscript==$YS_VERSION"
+          echo "installing ys $YS_VERSION"
+          curl -fsSL "https://github.com/yaml/yamlscript/releases/download/$YS_VERSION/ys-$YS_VERSION-linux-x64.tar.xz" | tar -xJ
+          echo "$GITHUB_WORKSPACE/ys-$YS_VERSION-linux-x64" >> "$GITHUB_PATH"
           ys --version
 
       - name: Run probe suite
@@ -36,8 +41,10 @@ jobs:
           # the step before the code can be recorded - which is how this gate
           # silently became advisory. Disable errexit around the pipe, then read
           # the runner's own status via PIPESTATUS; failure is enforced below.
+          # --strict: a `ys` version other than the pin is an error here, where
+          # it is only a warning locally, because this run's evidence is cited.
           set +e
-          python3 probes/run_probes.py 2>&1 | tee probe_output.txt
+          python3 probes/run_probes.py --strict 2>&1 | tee probe_output.txt
           code=${PIPESTATUS[0]}
           set -e
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
@@ -46,6 +53,13 @@ jobs:
         # Proves the suite above can fail. Without this, a green run is
         # unfalsifiable and the claim below means nothing.
         run: python3 scripts/mutation_check.py
+
+      - name: Aggregate test suite
+        # Transpiles and executes every test_suite/*.clj under ys. Gating as of
+        # 2026-10-17, when its last known defect (014_maps, a map-literal
+        # emission bug) was fixed; until then it ran with continue-on-error and
+        # its xfail list is now gone with the mechanism itself.
+        run: ./run_tests.sh
 
       - name: Determine claim state
         id: claim

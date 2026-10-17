@@ -8,9 +8,21 @@ file per suite.
     python3 probes/run_probes.py                  # all suites
     python3 probes/run_probes.py --suite v1.1.0   # one suite
 
-Exit code is 0 only when every probe in every selected suite passes, so CI can
-gate on it directly. Evidence lands in
-convergence-claims/evidence/run-<suite version>.json.
+    --transpiler PATH   transpile with this file instead of clj-to-ys.py
+                        (scripts/mutation_check.py points this at a copy)
+    --no-evidence       run the probes, write nothing
+    --strict            fail instead of warning when the installed `ys` is not
+                        the pinned version. Local runs warn; CI passes this.
+
+Exit code is 0 only when every probe in every selected suite passes and no xfail
+probe unexpectedly passes, so CI can gate on it directly. A probe marked
+`"status": "xfail"` in the manifest is expected to fail: it reports XFAIL while
+it does, XPASS when it stops, and XPASS is an error - that is the signal to
+retire the entry.
+
+Evidence lands in convergence-claims/evidence/run-<suite version>.json, and is
+rewritten only when something other than the timestamp changed, so a clean
+re-run leaves the working tree clean.
 """
 
 import json
@@ -45,10 +57,10 @@ def ys_version() -> str | None:
     return None
 
 
-def transpile(corpus: Path) -> tuple[str | None, str]:
+def transpile(corpus: Path, transpiler: Path) -> tuple[str | None, str]:
     """Clojure -> YS via the transpiler. Returns (ys_code, error)."""
     result = subprocess.run(
-        [sys.executable, str(ROOT / "clj-to-ys.py"), str(corpus)],
+        [sys.executable, str(transpiler), str(corpus)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -97,7 +109,17 @@ def compare(actual: str, expected_doc: dict) -> tuple[bool, dict | None]:
     return passed, diff
 
 
-def run_probe(probe: dict, suite_version: str) -> dict:
+def run_probe(probe: dict, suite_version: str, transpiler: Path) -> dict:
+    record = _run_probe(probe, suite_version, transpiler)
+    if probe.get("status") == "xfail":
+        # A known defect, kept under observation: failing is the expected
+        # verdict, passing means the defect is gone and the entry is stale.
+        record["expected"] = "xfail"
+        record["status"] = "XPASS" if record["status"] == "PASS" else "XFAIL"
+    return record
+
+
+def _run_probe(probe: dict, suite_version: str, transpiler: Path) -> dict:
     probe_id = probe["id"]
     corpus = ROOT / probe["corpus"]
     expected_path = ROOT / probe["expected"]
@@ -114,7 +136,7 @@ def run_probe(probe: dict, suite_version: str) -> dict:
 
     source = corpus.read_text()
     record["input"] = source
-    ys_code, error = transpile(corpus)
+    ys_code, error = transpile(corpus, transpiler)
     if ys_code is None:
         record["error"] = error
         return record
@@ -134,17 +156,35 @@ def run_probe(probe: dict, suite_version: str) -> dict:
     return record
 
 
-def run_suite(suite: dict) -> dict:
+def write_evidence(results: dict, out: Path) -> bool:
+    """Write the evidence file unless everything but the timestamp is unchanged.
+
+    Evidence is tracked on purpose (CODING_STANDARDS.md rule 10), so rewriting
+    it on every run would leave a dirty working tree after every probe run for
+    nothing. Returns True if the file was written.
+    """
+    wanted = {k: v for k, v in results.items() if k != "timestamp"}
+    if out.is_file():
+        have = json.loads(out.read_text())
+        if {k: v for k, v in have.items() if k != "timestamp"} == wanted:
+            return False
+    out.write_text(json.dumps(results, indent=2) + "\n")
+    return True
+
+
+def run_suite(suite: dict, transpiler: Path, evidence: bool) -> dict:
     results = {
         "probe_suite_version": suite["version"],
         "corpus_version": suite["corpus_version"],
         "expected_version": suite["expected_version"],
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "probes": [run_probe(p, suite["version"]) for p in suite["probes"]],
+        "probes": [
+            run_probe(p, suite["version"], transpiler) for p in suite["probes"]
+        ],
     }
-    EVIDENCE.mkdir(parents=True, exist_ok=True)
-    out = EVIDENCE / f"run-{suite['version']}.json"
-    out.write_text(json.dumps(results, indent=2) + "\n")
+    if evidence:
+        EVIDENCE.mkdir(parents=True, exist_ok=True)
+        write_evidence(results, EVIDENCE / f"run-{suite['version']}.json")
     return results
 
 
@@ -158,10 +198,23 @@ def main() -> int:
         print("  install with: pip install yamlscript==%s" % manifest["ys_version"])
         return 2
     if installed != manifest["ys_version"]:
-        print(
-            f"WARNING: manifest pins ys {manifest['ys_version']}, found {installed}."
+        mismatch = (
+            f"manifest pins ys {manifest['ys_version']}, found {installed}."
             " Evidence is not comparable across versions."
         )
+        # A local run on the wrong version is worth a warning; CI evidence that
+        # silently differs from the pin is not, so CI passes --strict.
+        if "--strict" in args:
+            print("ERROR: " + mismatch)
+            return 2
+        print("WARNING: " + mismatch)
+
+    transpiler = ROOT / "clj-to-ys.py"
+    if "--transpiler" in args:
+        transpiler = Path(args[args.index("--transpiler") + 1]).resolve()
+        if not transpiler.is_file():
+            sys.exit(f"missing transpiler {transpiler}")
+    evidence = "--no-evidence" not in args
 
     suites = manifest["suites"]
     if "--suite" in args:
@@ -173,19 +226,35 @@ def main() -> int:
 
     bad = 0
     for suite in suites:
-        results = run_suite(suite)
-        passed = sum(1 for p in results["probes"] if p["status"] == "PASS")
-        failed = sum(1 for p in results["probes"] if p["status"] == "FAIL")
-        error = sum(1 for p in results["probes"] if p["status"] == "ERROR")
-        print(f"{suite['version']}: {passed} PASS, {failed} FAIL, {error} ERROR")
+        results = run_suite(suite, transpiler, evidence)
+        counts = {
+            verdict: sum(1 for p in results["probes"] if p["status"] == verdict)
+            for verdict in ("PASS", "FAIL", "ERROR", "XFAIL", "XPASS")
+        }
+        print(
+            "{}: {} PASS, {} FAIL, {} ERROR, {} XFAIL, {} XPASS".format(
+                suite["version"],
+                counts["PASS"],
+                counts["FAIL"],
+                counts["ERROR"],
+                counts["XFAIL"],
+                counts["XPASS"],
+            )
+        )
         for probe in results["probes"]:
             if probe["status"] != "PASS":
                 print(f"  {probe['status']:5} {probe['probe_id']}")
                 if probe.get("error"):
                     print(f"        {probe['error'].splitlines()[0]}")
-        evidence = f"run-{suite['version']}.json"
-        print(f"  evidence: {(EVIDENCE / evidence).relative_to(ROOT)}")
-        bad += failed + error
+                if probe["status"] == "XPASS":
+                    print(
+                        "        expected to fail but passed: retire the xfail"
+                        " in probes/manifest.json"
+                    )
+        if evidence:
+            name = f"run-{suite['version']}.json"
+            print(f"  evidence: {(EVIDENCE / name).relative_to(ROOT)}")
+        bad += counts["FAIL"] + counts["ERROR"] + counts["XPASS"]
     return 1 if bad else 0
 
 

@@ -1,0 +1,5 @@
+{
+  "version": "v1.3.0",
+  "description": "let in value position: name/value bindings and an infix body that YS otherwise evaluates as its last operand",
+  "expected_output": "1\n3\n7\n"
+}

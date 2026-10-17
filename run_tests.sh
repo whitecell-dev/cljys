@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test runner for clj_to_ys.py transpiler
+# Test runner for clj-to-ys.py transpiler
 # Usage: ./run_tests.sh
 
 INPUT_DIR="test_suite"
@@ -30,20 +30,23 @@ for clj_file in "$INPUT_DIR"/*.clj; do
     # Run transpiler
     $TRANSPILER "$clj_file" >"$output_file" 2>"$error_file"
 
-    # Check if transpiler succeeded (no error output)
-    if [ ! -s "$error_file" ]; then
-      # `ys FILE` executes the emitted YS, so this catches invalid output and
-      # runtime failures alike; `ys -c` would only compile it.
-      if ys "$output_file" >/dev/null 2>&1; then
-        echo "  ✅ PASS - executes under ys"
-        PASSED=$((PASSED + 1))
-        rm -f "$error_file" # Clean up empty error file
-      else
-        echo "  ❌ FAIL - ys could not run the output"
-        FAILED=$((FAILED + 1))
-      fi
+    # A failure is either the transpiler or the runtime; `ys FILE` executes the
+    # emitted YS, so this catches invalid output and runtime failures alike;
+    # `ys -c` would only compile it.
+    if [ -s "$error_file" ]; then
+      reason="Transpiler error"
+    elif ys "$output_file" >/dev/null 2>&1; then
+      reason=""
     else
-      echo "  ❌ FAIL - Transpiler error"
+      reason="ys could not run the output"
+    fi
+
+    if [ -z "$reason" ]; then
+      echo "  ✅ PASS - executes under ys"
+      PASSED=$((PASSED + 1))
+      rm -f "$error_file" # Clean up empty error file
+    else
+      echo "  ❌ FAIL - $reason"
       FAILED=$((FAILED + 1))
     fi
   fi
