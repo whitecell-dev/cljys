@@ -5,17 +5,28 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  # Re-run the gate by hand. Worth having: a workflow that cannot execute at
+  # all is only discoverable by running it, and a branch push does not trigger
+  # the triggers above.
+  workflow_dispatch:
 
 jobs:
   probe:
     runs-on: ubuntu-latest
+    # The job only reads the repo. Uploading the artifact authenticates with the
+    # Actions runtime token, not GITHUB_TOKEN, so `contents: read` is enough —
+    # and it stops the job inheriting a write-capable token.
+    permissions:
+      contents: read
     outputs:
       # Consumable by later jobs/workflows: ACTIVE only while the suite passes.
       claim_state: ${{ steps.claim.outputs.state }}
     steps:
-      - uses: actions/checkout@v3
+      # Node 20 line. v7 exists and needs runner >= 2.327.1; v4 is the version
+      # generation this workflow was written against.
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -54,6 +65,11 @@ jobs:
         # unfalsifiable and the claim below means nothing.
         run: python3 scripts/mutation_check.py
 
+      - name: Input boundary check
+        # Malformed Clojure must be rejected with a typed exit code, not
+        # silently repaired into plausible YS.
+        run: python3 scripts/check_input_boundary.py
+
       - name: Aggregate test suite
         # Transpiles and executes every test_suite/*.clj under ys. Gating as of
         # 2026-10-17, when its last known defect (014_maps, a map-literal
@@ -74,7 +90,11 @@ jobs:
 
       - name: Upload probe results
         if: always()
-        uses: actions/upload-artifact@v3
+        # v4 is the breaking step from v3: names are unique per run (one upload
+        # here) and hidden files are excluded (neither path is hidden). v3 is
+        # deprecated and now hard-fails the job at action-download time, before
+        # any step runs.
+        uses: actions/upload-artifact@v4
         with:
           name: probe-results
           path: |

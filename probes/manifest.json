@@ -24,8 +24,8 @@
     "v1.1.0's corpus lives under probes_v1_1/ rather than probes/ so those",
     "frozen files stay byte-identical and in place; the manifest references",
     "them explicitly. Fold them in under a new suite version when convenient.",
-    "v1.2.0 follows the same convention under probes_v1_2/, and v1.3.0 under",
-    "probes_v1_3/."
+    "v1.2.0 follows the same convention under probes_v1_2/, v1.3.0 under",
+    "probes_v1_3/, and v1.4.0 under probes_v1_4/."
   ],
   "suites": [
     {
@@ -192,6 +192,34 @@
           "kind": "primitive",
           "corpus": "probes_v1_3/corpus/map_get.clj",
           "expected": "probes_v1_3/expected/map_get.json",
+          "invoke": "run"
+        }
+      ]
+    },
+    {
+      "version": "v1.4.0",
+      "corpus_version": "v1.4.0",
+      "expected_version": "v1.4.0",
+      "probes": [
+        {
+          "id": "multi_arg_print",
+          "kind": "primitive",
+          "corpus": "probes_v1_4/corpus/multi_arg_print.clj",
+          "expected": "probes_v1_4/expected/multi_arg_print.json",
+          "invoke": "run"
+        },
+        {
+          "id": "string_dollar",
+          "kind": "primitive",
+          "corpus": "probes_v1_4/corpus/string_dollar.clj",
+          "expected": "probes_v1_4/expected/string_dollar.json",
+          "invoke": "run"
+        },
+        {
+          "id": "string_apostrophe",
+          "kind": "primitive",
+          "corpus": "probes_v1_4/corpus/string_apostrophe.clj",
+          "expected": "probes_v1_4/expected/string_apostrophe.json",
           "invoke": "run"
         }
       ]

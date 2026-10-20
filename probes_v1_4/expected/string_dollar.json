@@ -1,0 +1,5 @@
+{
+  "version": "v1.4.0",
+  "description": "literal $ stays literal in both single- and double-quoted YS emission; the second line also exercises an escape",
+  "expected_output": "cost is $5 and $HOME\npath\n$HOME\n"
+}

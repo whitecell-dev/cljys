@@ -145,14 +145,12 @@ operators:
 # ============================================================================
 
 map_literal:
-  syntax: "+{key: value, key2: value2}"
+  syntax: 'hash-map("key" value "key2" value2)'
   allowed_positions:
-    - assignment_rhs: "m =: +{a: 1, b: 2}"
-    - top_level_value: "+{a: 1, b: 2}"  # only in REPL or as expression result
-  forbidden_positions:
-    - function_arguments
-    - nested_expressions
-  rule: "MUST be hoisted to =: assignment before use in any other position"
+    - assignment_rhs: 'm =: hash-map("a" 1 "b" 2)'
+    - function_arguments: 'f(hash-map("a" 1))'
+    - nested_expressions: true
+  rule: "Use hash-map(); +{...} is rejected by YS in code mode"
 
 # ============================================================================
 # VECTOR LITERAL
@@ -205,8 +203,8 @@ dwim:
 
 semantics:
   execution_model: "Compiles to Clojure → runs on SCI → GraalVM native image"
-  determinism: true
-  sandboxed: true
+  determinism: "transpiler only; runtime determinism unverified"
+  sandboxed: "unverified"
   no_dynamic_code_loading: true
   no_macros: true
   no_jvm_startup: true
@@ -230,7 +228,7 @@ canonical_forms:
 
   map_literal:
     clojure: "{:a 1 :b 2}"
-    ys: "+{a: 1, b: 2}"
+    ys: 'hash-map("a" 1 "b" 2)'
 
   vector_literal:
     clojure: "[1 2 3]"
@@ -238,7 +236,7 @@ canonical_forms:
 
   multi_arg_println:
     clojure: "(println a b c)"
-    ys: "say: str(a \" \" b \" \" c)"
+    ys: "say: a b c"  # unquoted expressions; adjacent string literals fail
 
 # ============================================================================
 # FORBIDDEN PATTERNS
@@ -253,9 +251,9 @@ forbidden_patterns:
     pattern: "(fn [[k v]] ...)"
     canonical: "(fn [kv] (let [k (first kv) v (second kv)] ...))"
 
-  - description: "Multi-arg println (variadic)"
-    pattern: "(println a b c)"
-    canonical: "(println (str a \" \" b \" \" c))"
+  - description: "Multi-arg println with adjacent string literals"
+    pattern: "(println \"a\" \"b\")"
+    canonical: "say: str('a' ' ' 'b')"
 
   - description: "Implicit vector call"
     pattern: "(xs 0)"

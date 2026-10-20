@@ -43,10 +43,11 @@ gotten wrong, or one whose violation would be invisible in the output.
    form and the parenthesized infix body are separate mutations, because the
    second one is invisible in the exit code and only the probe catches it.
 10. **Evidence is generated, never authored.** Never hand-edit
-    `convergence-claims/evidence/run-*.json`. Re-running a suite rewrites a
-    suite's file only when a verdict or an output actually moved — an unchanged
-    run leaves the file, and the tree, alone. A diff in that file therefore
-    always means something: if it is only a `timestamp`, something is wrong.
+    `convergence-claims/evidence/run-*.json`. A re-run rewrites a suite's file
+    only when a verdict or an output actually moved — an unchanged run leaves
+    the file, and the tree, alone. The timestamp is the last content change,
+    not the last run. A diff in that file therefore always means something: if
+    it is only a `timestamp`, something is wrong.
 11. **Pin `ys` in one place.** The version lives in `probes/manifest.json` and
     CI reads it from there. Two copies of a version pin is one drift away from
     incomparable evidence.

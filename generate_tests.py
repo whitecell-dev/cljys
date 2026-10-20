@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate comprehensive test suite for clj_to_ys.py"""
+"""Generate comprehensive test suite for clj-to-ys.py"""
 
 import os
 

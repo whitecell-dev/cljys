@@ -7,10 +7,8 @@
 # Nothing in this file is host-global: it applies to this checkout only.
 
 # Every CE-written artifact (plans, solutions/learnings, ideation, pulse
-# reports) would live under docs/, which is CE's default and is committed, so
-# the knowledge compounds for everyone who clones rather than one checkout only.
-# `docs/` does not exist in the tree yet; this key declares a location for CE to
-# write into, it does not describe a directory that is currently there.
+# reports) lives under docs/, which is CE's default and is committed, so the
+# knowledge compounds for everyone who clones rather than one checkout only.
 docs_root: docs
 
 # Prescriptive YAMLScript<->Clojure equivalence rules. Planning grounds in

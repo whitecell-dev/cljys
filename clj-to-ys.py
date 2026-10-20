@@ -19,6 +19,19 @@ import argparse
 from typing import List, Optional, Tuple
 
 
+class TranspileError(Exception):
+    """Typed input rejection.
+
+    A rejected input is not repaired and not emitted. The CLI reports the code
+    on stderr and exits 2, so a caller cannot mistake a partial transform for a
+    successful one.
+    """
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 # ============================================================================
 # LEXER
 # ============================================================================
@@ -74,6 +87,10 @@ def tokenize(src: str) -> List[Token]:
             j = i + 1
             while j < len(src) and not (src[j] == '"' and src[j - 1] != "\\"):
                 j += 1
+            if j >= len(src):
+                raise TranspileError(
+                    "E_UNTERMINATED_STRING", f"unterminated string starting at offset {i}"
+                )
             tokens.append(Token("STR", src[i : j + 1]))
             i = j + 1
             continue
@@ -92,6 +109,10 @@ def tokenize(src: str) -> List[Token]:
             j = i + 2
             while j < len(src) and not (src[j] == '"' and src[j - 1] != "\\"):
                 j += 1
+            if j >= len(src):
+                raise TranspileError(
+                    "E_UNTERMINATED_REGEX", f"unterminated regex starting at offset {i}"
+                )
             tokens.append(Token("REGEX", src[i : j + 1]))
             i = j + 1
             continue
@@ -111,7 +132,9 @@ def tokenize(src: str) -> List[Token]:
             i = j
             continue
 
-        i += 1  # skip unknown
+        raise TranspileError(
+            "E_UNKNOWN_CHAR", f"unexpected character {c!r} at offset {i}"
+        )
 
     return tokens
 
@@ -162,13 +185,21 @@ def parse(tokens: List[Token]) -> List[SExpr]:
         t = peek()
         if t is None:
             return None
+        if t.kind == "CLOSE":
+            raise TranspileError(
+                "E_UNEXPECTED_CLOSE", f"unexpected {t.val!r} at form position"
+            )
         if t.kind == "QUOTE":
             consume()
             inner = read_form()
+            if inner is None:
+                raise TranspileError("E_MISSING_FORM", "quote at end of input")
             return SList("(", [Token("ATOM", "quote"), inner])
         if t.kind == "DISPATCH":
             consume()
             inner = read_form()
+            if inner is None:
+                raise TranspileError("E_MISSING_FORM", f"{t.val!r} at end of input")
             return SList("(", [Token("ATOM", "@"), inner])
         if t.kind == "OPEN":
             bracket = t.val  # '(', '[', or '{'
@@ -176,8 +207,11 @@ def parse(tokens: List[Token]) -> List[SExpr]:
             items = []
             while peek() and peek().kind != "CLOSE":
                 items.append(read_form())
-            if peek():
-                consume()  # eat CLOSE
+            if peek() is None:
+                raise TranspileError(
+                    "E_UNCLOSED_FORM", f"unclosed {bracket!r} at end of input"
+                )
+            consume()  # eat CLOSE
             return SList(bracket, items)
         return consume()
 
@@ -218,15 +252,22 @@ def is_str_token(x) -> bool:
 
 
 def clj_str_to_ys(s: str) -> str:
-    """Convert Clojure double-quoted string to YS form.
-    If it contains interpolation markers, keep double-quoted.
-    Otherwise prefer single-quoted."""
-    inner = s[1:-1]
-    # unescape Clojure escapes
-    inner = inner.replace('\\"', '"')
-    if "$" in inner or "\\" in inner:
-        return f'"{inner}"'
-    return f"'{inner}'"
+    """Convert a Clojure string literal to a YS one.
+
+    Clojure never interpolates, so the default is a YS single-quoted string:
+    `$HOME` and `$5` stay literal instead of becoming a (possibly loud)
+    interpolation. Double quotes are needed only when the source carries a
+    backslash escape, which single quotes cannot represent. A quote inside a
+    single-quoted YS string is escaped by doubling it.
+    """
+    raw = s[1:-1]
+    if "\\" in raw:
+        # Double quotes are required to carry the escape. A literal `$` still
+        # must not become an interpolation, so break it with an expression that
+        # evaluates to a dollar sign.
+        escaped = raw.replace("$", "$(str '$')")
+        return f'"{escaped}"'
+    return "'" + raw.replace("'", "''") + "'"
 
 
 # ============================================================================
@@ -497,6 +538,8 @@ class Transpiler:
             a = args[i]
             if is_atom(a, "&"):
                 i += 1
+                if i >= len(args):
+                    raise TranspileError("E_BAD_PARAM", "trailing '&' in parameter list")
                 parts.append(f"& {atom_val(args[i])}")
             elif is_vec(a):
                 # destructuring: [[k v]]
@@ -513,6 +556,12 @@ class Transpiler:
         # (doseq [binding coll, ...] body...)
         bindings = form[1]
         body = form[2:]
+        if not is_vec(bindings):
+            raise TranspileError("E_BAD_BINDING", "doseq requires a binding vector")
+        if len(bindings) % 2:
+            raise TranspileError(
+                "E_ODD_BINDINGS", "doseq binding vector must contain name/value pairs"
+            )
 
         # Parse binding pairs: [[k v] coll] or [x coll]
         bind_pairs = []
@@ -565,10 +614,14 @@ class Transpiler:
         """
         binding = form[1]  # a [pat coll] vector
         body = form[2:]
+        if not is_vec(binding) or len(binding) != 2:
+            raise TranspileError(
+                "E_BAD_BINDING", "each requires a binding vector of two forms"
+            )
 
         # binding[0] = pattern, binding[1] = collection
-        pat = binding[0] if len(binding) > 0 else Token("ATOM", "_")
-        coll = binding[1] if len(binding) > 1 else Token("ATOM", "nil")
+        pat = binding[0]
+        coll = binding[1]
 
         pat_s = self._pattern(pat)
         coll_s = self._binding_coll(coll)
@@ -630,6 +683,12 @@ class Transpiler:
     def _emit_let(self, form: SExpr):
         bindings = form[1]
         body = form[2:]
+        if not is_vec(bindings):
+            raise TranspileError("E_BAD_BINDING", "let requires a binding vector")
+        if len(bindings) % 2:
+            raise TranspileError(
+                "E_ODD_BINDINGS", "let binding vector must contain name/value pairs"
+            )
         i = 0
         while i < len(bindings) - 1:
             name = atom_val(bindings[i])
@@ -702,6 +761,10 @@ class Transpiler:
             # the empty and nested cases.
             if not form:
                 return "hash-map()"
+            if len(form) % 2:
+                raise TranspileError(
+                    "E_ODD_MAP", "map literal must contain key/value pairs"
+                )
             pairs = []
             it = iter(form)
             for k in it:
@@ -838,6 +901,12 @@ class Transpiler:
             # (spec.md, and the scalar list in no-block-form-in-value-position).
             bindings = form[1]
             body = form[2]
+            if not is_vec(bindings):
+                raise TranspileError("E_BAD_BINDING", "let requires a binding vector")
+            if len(bindings) % 2:
+                raise TranspileError(
+                    "E_ODD_BINDINGS", "let binding vector must contain name/value pairs"
+                )
             parts = []
             i = 0
             while i < len(bindings) - 1:
@@ -939,6 +1008,15 @@ class Transpiler:
         """Convert (str a b c) to YS string concatenation."""
         if not parts:
             return "''"
+        # A literal `$` inside the interpolated form would be read as a YS
+        # interpolation, and a literal `"` would end the string. Fall back to
+        # str() with quoted literal arguments, where both stay literal.
+        if any(is_str_token(p) and ("$" in p.val or '"' in p.val) for p in parts):
+            args = [
+                clj_str_to_ys(p.val) if is_str_token(p) else self.expr(p)
+                for p in parts
+            ]
+            return "str(" + " ".join(args) + ")"
         # All literal strings → single interpolated string
         segments = []
         for p in parts:
@@ -966,6 +1044,8 @@ class Transpiler:
                 else:
                     result = f"{result}.{fn}"
             elif is_list(step):
+                if not step:
+                    raise TranspileError("E_THREAD_STEP", "empty threading step")
                 fn = RENAMES.get(atom_val(step[0]), atom_val(step[0]))
                 args = [self.expr(a) for a in step[1:]]
                 if fn in ZERO_ARG and not args:
@@ -974,6 +1054,10 @@ class Transpiler:
                     result = f"{result}.{fn}({' '.join(args)})"
                 else:
                     result = f"{result}.{fn}"
+            else:
+                raise TranspileError(
+                    "E_THREAD_STEP", f"unsupported threading step {step!r}"
+                )
         return result
 
     # ---- DWIM calls ----
@@ -1035,6 +1119,8 @@ class Transpiler:
         """Emit cond as nested .if() chain (inline) — only for simple cases."""
         if not clauses:
             return "nil"
+        if len(clauses) % 2:
+            raise TranspileError("E_ODD_CLAUSES", "cond requires test/value pairs")
         test = clauses[0]
         val = clauses[1] if len(clauses) > 1 else Token("ATOM", "nil")
         rest = clauses[2:]
@@ -1057,6 +1143,8 @@ class Transpiler:
 def rewrite_top_cond(transpiler: Transpiler, form: SExpr):
     """Emit (cond ...) as block-form YS cond."""
     clauses = form[1:]
+    if len(clauses) % 2:
+        raise TranspileError("E_ODD_CLAUSES", "cond requires test/value pairs")
     transpiler.emit("cond:")
     transpiler.indent += 1
     i = 0
@@ -1101,7 +1189,7 @@ def transpile_source(src: str) -> str:
     return t.transpile(forms)
 
 
-def main():
+def main() -> int:
     p = argparse.ArgumentParser(description="Clojure → YAMLScript transpiler")
     p.add_argument("input", help="Input .clj file or - for stdin")
     p.add_argument("-o", "--output", default=None, help="Output .ys file")
@@ -1113,7 +1201,11 @@ def main():
         with open(args.input) as f:
             src = f.read()
 
-    result = transpile_source(src)
+    try:
+        result = transpile_source(src)
+    except TranspileError as exc:
+        print(f"ERROR[{exc.code}]: {exc}", file=sys.stderr)
+        return 2
 
     if args.output:
         with open(args.output, "w") as f:
@@ -1121,7 +1213,8 @@ def main():
         print(f"Written to {args.output}")
     else:
         print(result)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,5 @@
+{
+  "version": "v1.4.0",
+  "description": "println with several numeric args; pins the space-separated multi-arg say emission",
+  "expected_output": "1 2 3\n"
+}

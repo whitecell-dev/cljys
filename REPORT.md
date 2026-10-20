@@ -151,7 +151,7 @@ The CHALLENGE path would simulate:
 
 Test results: **NOT RUN — no such test exists.**
 
-Steps 1 and 3 correspond to real CI logic (`.github/workflows/probe.yml:64-73`,
+Steps 1 and 3 correspond to real CI logic (`.github/workflows/probe.yml:75-84`,
 `:86-91`).
 Steps 2 and 4 have no implementation in this repository: the downstream worker
 does not exist here, so its behavior cannot have been verified.

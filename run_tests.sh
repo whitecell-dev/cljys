@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# Test runner for clj-to-ys.py transpiler
+# Execution smoke test for clj-to-ys.py transpiler.
 # Usage: ./run_tests.sh
+#
+# This checks only that the transpiler exits cleanly and `ys` accepts the
+# output. It has NO output oracle: a probe can emit wrong YS that still runs.
+# Exact expected output lives in probes/ and is checked by run_probes.py.
 
 INPUT_DIR="test_suite"
 OUTPUT_DIR="results"
@@ -42,7 +46,7 @@ for clj_file in "$INPUT_DIR"/*.clj; do
     fi
 
     if [ -z "$reason" ]; then
-      echo "  ✅ PASS - executes under ys"
+      echo "  ✅ EXECUTED - ys accepted it (no output oracle)"
       PASSED=$((PASSED + 1))
       rm -f "$error_file" # Clean up empty error file
     else
@@ -54,7 +58,7 @@ done
 
 echo ""
 echo "=========================================="
-echo "Results: $PASSED passed, $FAILED failed"
+echo "Results: $PASSED executed, $FAILED failed to execute"
 echo "=========================================="
 
 # List generated files

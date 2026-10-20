@@ -1,0 +1,68 @@
+{
+  "probe_suite_version": "v1.4.0",
+  "corpus_version": "v1.4.0",
+  "expected_version": "v1.4.0",
+  "timestamp": "2026-10-20T21:00:40.718597+00:00",
+  "provenance": {
+    "ys_version": "0.2.8",
+    "python_version": "3.12.3",
+    "transpiler": "clj-to-ys.py",
+    "transpiler_sha256": "fc74d9ec375c98c6958f375a797453cc714d923fce646e5c5e34d59b817e1980"
+  },
+  "probes": [
+    {
+      "probe_id": "multi_arg_print",
+      "suite": "v1.4.0",
+      "kind": "primitive",
+      "status": "PASS",
+      "reason": null,
+      "input": ";; v1.4.0 \u2014 println with several args is a single `say:` with expressions\n;; separated by spaces. Pinned for numbers; see KNOWN_ISSUES.md for the\n;; string-literal case, which YS rejects at compile time rather than\n;; printing the wrong thing.\n(println 1 2 3)\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
+      "expected_output": {
+        "version": "v1.4.0",
+        "description": "println with several numeric args; pins the space-separated multi-arg say emission",
+        "expected_output": "1 2 3\n"
+      },
+      "actual_output": "1 2 3\n",
+      "diff": null,
+      "passed": true
+    },
+    {
+      "probe_id": "string_dollar",
+      "suite": "v1.4.0",
+      "kind": "primitive",
+      "status": "PASS",
+      "reason": null,
+      "input": ";; v1.4.0 \u2014 Clojure does not interpolate. A literal `$HOME` must stay literal;\n;; emitting it into a YS double-quoted string instead makes YS look up HOME.\n;; The second line also carries an escape, which forces a double-quoted YS\n;; string, so the literal dollar has to survive that path too.\n(println \"cost is $5 and $HOME\")\n(println \"path\\n$HOME\")\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
+      "expected_output": {
+        "version": "v1.4.0",
+        "description": "literal $ stays literal in both single- and double-quoted YS emission; the second line also exercises an escape",
+        "expected_output": "cost is $5 and $HOME\npath\n$HOME\n"
+      },
+      "actual_output": "cost is $5 and $HOME\npath\n$HOME\n",
+      "diff": null,
+      "passed": true
+    },
+    {
+      "probe_id": "string_apostrophe",
+      "suite": "v1.4.0",
+      "kind": "primitive",
+      "status": "PASS",
+      "reason": null,
+      "input": ";; v1.4.0 \u2014 a single quote inside a Clojure string must be doubled in a YS\n;; single-quoted string; emitting it raw ends the scalar early.\n(println \"it's fine\")\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
+      "expected_output": {
+        "version": "v1.4.0",
+        "description": "a single quote inside a Clojure string is doubled, not left to terminate the YS scalar",
+        "expected_output": "it's fine\n"
+      },
+      "actual_output": "it's fine\n",
+      "diff": null,
+      "passed": true
+    }
+  ]
+}

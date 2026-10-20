@@ -88,6 +88,17 @@ MUTATIONS = [
         "form in YS code mode, so hash-map with QUOTED keys is the only form; an "
         "unquoted key is a symbol reference",
     },
+    {
+        "name": "string-quoting-reverts-to-double",
+        "file": "clj-to-ys.py",
+        # The old form chose a YS double-quoted string whenever a `$` appeared,
+        # which turns a literal `$HOME` into an interpolation.
+        "find": '    return "\'" + raw.replace("\'", "\'\'") + "\'"',
+        "replace": '    return f\'"{raw}"\'',
+        "must_fail": "v1.4.0",
+        "why": "Clojure never interpolates; emitting a literal `$HOME` into a YS "
+        "double-quoted string makes YS resolve HOME instead of printing it",
+    },
 ]
 
 

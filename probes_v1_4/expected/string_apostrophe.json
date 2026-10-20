@@ -1,0 +1,5 @@
+{
+  "version": "v1.4.0",
+  "description": "a single quote inside a Clojure string is doubled, not left to terminate the YS scalar",
+  "expected_output": "it's fine\n"
+}

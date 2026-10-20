@@ -27,8 +27,8 @@
 
 ## Status
 - current state: ACTIVE (probe suite v1.0.0 passes; no probe is xfail, see the corrections section)
-- latest probe run: run-v1.0.0.json (2026-10-17T22:29:11.765012+00:00)
-- probe summary: 10 PASS, 0 XFAIL, 0 ERROR
+- latest probe run: run-v1.0.0.json (last content change; the file now records provenance)
+- probe summary: 10 PASS, 0 FAIL, 0 ERROR, 0 UNKNOWN, 0 XFAIL
 
 ### Corrections to this file
 
@@ -39,11 +39,12 @@ corrected on 2026-10-17; both are recorded here rather than silently edited.
   directory that does not exist. The composition probes live in
   `probes/corpus/`. `REPORT.md` section 11 recorded this class of defect as
   fixed, but only in the v1.1.0 claim; this file was missed.
-- **The probe summary is stale and is retained as history.** "5 PASS, 5 FAIL,
-  0 ERROR" describes the 2026-10-05 run named above, not the committed
-  `convergence-claims/evidence/run-v1.0.0.json`, and not any current run. The
-  evidence file is authoritative and its verdicts churn on every run; do not
-  treat this line as a live reading. Current state (SUSPECT) is still correct.
+- **The probe summary used to be stale.** It said "5 PASS, 5 FAIL, 0 ERROR",
+  which described the 2026-10-05 run, not the committed
+  `convergence-claims/evidence/run-v1.0.0.json`. It now mirrors the committed
+  file. The evidence remains authoritative and its verdicts churn whenever an
+  output moves; do not treat the summary as a live reading. The current state
+  is ACTIVE.
 - **The state flipped twice on 2026-10-17, and the scope with it.** First
   `TR01_workflow` and `TR01_simple_let` were marked `"status": "xfail"`, so the
   suite exited 0 and CI began publishing `claim_state=ACTIVE` while the emitter

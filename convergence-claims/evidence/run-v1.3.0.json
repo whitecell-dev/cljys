@@ -2,14 +2,23 @@
   "probe_suite_version": "v1.3.0",
   "corpus_version": "v1.3.0",
   "expected_version": "v1.3.0",
-  "timestamp": "2026-10-17T22:29:13.996726+00:00",
+  "timestamp": "2026-10-20T21:00:40.383964+00:00",
+  "provenance": {
+    "ys_version": "0.2.8",
+    "python_version": "3.12.3",
+    "transpiler": "clj-to-ys.py",
+    "transpiler_sha256": "fc74d9ec375c98c6958f375a797453cc714d923fce646e5c5e34d59b817e1980"
+  },
   "probes": [
     {
       "probe_id": "let_value_pos",
       "suite": "v1.3.0",
       "kind": "composition",
       "status": "PASS",
+      "reason": null,
       "input": ";; v1.3.0 \u2014 `let` in VALUE position: the minimal, independent witness for the\n;; two `let` defects. TR01_workflow covers the same path inside a realistic\n;; query shape; this one is small enough to read as the specification.\n;;\n;; Statement position is a DIFFERENT emitter path: `_emit_let` renders bindings\n;; as `k =: v` and emits no `let` at all, so a statement-position repro would\n;; pass without touching either defect. Confirmed by transpiling both forms.\n;;\n;; 1. binding form \u2014 Clojure's `name=init` is legal Clojure and rejected by YS\n;;    (\"let requires an even number of forms in binding vector\")\n;; 2. infix body \u2014 unparenthesized, YS evaluates the body as its LAST OPERAND:\n;;    `(let [n 3] n + 1)` is 1, not 4. A silent wrong value, not an error, which\n;;    is why it needs a probe rather than a manual check.\n(def plain (let [x 1] x))\n(def summed (let [x 1 y 2] (+ x y)))\n(def nested (let [n 3] (let [m 4] (+ n m))))\n(say plain)\n(say summed)\n(say nested)\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
       "expected_output": {
         "version": "v1.3.0",
         "description": "let in value position: name/value bindings and an infix body that YS otherwise evaluates as its last operand",
@@ -24,7 +33,10 @@
       "suite": "v1.3.0",
       "kind": "primitive",
       "status": "PASS",
+      "reason": null,
       "input": ";; v1.3.0 \u2014 a keyword-key map literal, pinned through a VALUE.\n;;\n;; Pins the quoted-key emission in the map-literal branch: `{:a 1}` renders its\n;; key through expr(), which strips the colon, so an unquoted key makes YS\n;; resolve `a` as a symbol and fail. The error wording differs between ys\n;; releases, so this asserts the value, never the message.\n(def m {:a 1})\n(say (get m :a))\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
       "expected_output": {
         "version": "v1.3.0",
         "description": "keyword-key map literal renders a quoted key; lookup returns the value",
@@ -39,7 +51,10 @@
       "suite": "v1.3.0",
       "kind": "primitive",
       "status": "PASS",
+      "reason": null,
       "input": ";; v1.3.0 \u2014 a two-key map, read back by key rather than printed.\n;;\n;; YS maps are unordered: `say` of this map prints `{a 1, b 2}` on ys 0.2.8 and\n;; `{b 2, a 1}` on 0.3.5. An exact-output probe over the printed map would\n;; therefore be a version-fragile test of nothing, so this pins the key\n;; rendering through lookups, where key order cannot appear.\n(def m {:a 1 :b 2})\n(say (get m \"a\"))\n(say (get m :b))\n",
+      "transpiler_exit_code": 0,
+      "ys_exit_code": 0,
       "expected_output": {
         "version": "v1.3.0",
         "description": "two-key map literal; both keys readable, asserted by lookup because YS map print order is not stable across ys versions",

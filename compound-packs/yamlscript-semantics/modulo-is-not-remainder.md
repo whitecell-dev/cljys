@@ -20,11 +20,10 @@ wrong is silent:
 division (result takes the divisor's sign). YS `%` truncates and YS `%%` floors,
 so `rem` → `%` and `mod` → `%%`.
 
-**Verified defect, currently unfixed:** `RENAMES` in `clj-to-ys.py` maps *both*
-`mod` and `rem` to `%`. `(mod -7 3)` therefore transpiles to `-7 % 3`, which
-evaluates to `-1` where Clojure gives `2`. Positive operands are unaffected,
-which is why a probe with only positive operands passes and hides the bug — a
-modulo probe must include a negative dividend.
+**Fixed 2026-10-17:** `RENAMES` in `clj-to-ys.py` maps `mod` to `%%` and `rem` to
+`%`. Positive operands alone would not have caught the old defect, so the probe
+uses a negative dividend (`mod_negative`) and the mutation check reverts the
+mapping to `%`.
 
 `spec.md` records the correct mapping (`mod` → `%%`); `RENAMES` disagrees with
 it. When the two conflict, `spec.md` is right and `RENAMES` is the bug.
